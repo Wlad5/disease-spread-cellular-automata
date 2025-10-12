@@ -2,12 +2,10 @@ import pygame
 import numpy as np
 import random
 
-# SIRS states
 SUSCEPTIBLE = 0
 INFECTED = 1
 RECOVERED = 2
 
-# Colors for visualization
 COLORS = {
     SUSCEPTIBLE: (200, 200, 200),  # light gray
     INFECTED: (200, 0, 0),         # red
@@ -26,14 +24,16 @@ class Grid:
             width,
             height,
             infection_prob=0.25,
-            recovery_time=30,
-            susceptible_time=50
+            recovery_prob=0.05,
+            waning_prob=0.02,
+            delta_t=1
             ):
         self.width = width
         self.height = height
         self.infection_prob = infection_prob
-        self.recovery_time = recovery_time
-        self.susceptible_time = susceptible_time
+        self.recovery_prob = recovery_prob
+        self.waning_prob = waning_prob
+        self.delta_t = delta_t
         self.grid = np.array([[Cell() for _ in range(width)] for _ in range(height)])
 
     def infect_random(self, n=10):
@@ -48,9 +48,8 @@ class Grid:
             for dy in [-1, 0, 1]:
                 if dx == 0 and dy == 0:
                     continue
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < self.width and 0 <= ny < self.height:
-                    neighbors.append(self.grid[ny][nx])
+                nx, ny = (x + dx) % self.width, (y + dy) % self.height
+                neighbors.append(self.grid[ny][nx])
         return neighbors
 
     def update(self):
@@ -60,24 +59,21 @@ class Grid:
                 cell = self.grid[y][x]
                 if cell.state == SUSCEPTIBLE:
                     neighbors = self.get_neighbors(x, y)
-                    if any(n.state == INFECTED for n in neighbors):
-                        if random.random() < self.infection_prob:
+                    n_infected = sum(1 for n in neighbors if n.state == INFECTED)
+                    if n_infected > 0:
+                        p = self.infection_prob * self.delta_t
+                        infection_probability = 1 - (1 - p) ** n_infected
+                        if random.random() < infection_probability:
                             new_grid[y][x].state = INFECTED
                 elif cell.state == INFECTED:
-                    cell.infection_time += 1
-                    if cell.infection_time >= self.recovery_time:
+                    if random.random() < self.recovery_prob * self.delta_t:
                         new_grid[y][x].state = RECOVERED
                         new_grid[y][x].recovered_time = 0
-                    else:
-                        new_grid[y][x].infection_time = cell.infection_time
                 elif cell.state == RECOVERED:
-                    cell.recovered_time += 1
-                    if cell.recovered_time >= self.susceptible_time:
+                    if random.random() < self.waning_prob * self.delta_t:
                         new_grid[y][x].state = SUSCEPTIBLE
                         new_grid[y][x].infection_time = 0
                         new_grid[y][x].recovered_time = 0
-                    else:
-                        new_grid[y][x].recovered_time = cell.recovered_time
         self.grid = new_grid
 
 class Simulation:
@@ -87,8 +83,9 @@ class Simulation:
             height=100,
             cell_size=6,
             infection_prob=0.25,
-            recovery_time=30,
-            susceptible_time=50
+            recovery_prob=0.05,
+            waning_prob=0.02,
+            delta_t=1
             ):
         pygame.init()
         self.width = width
@@ -96,7 +93,7 @@ class Simulation:
         self.cell_size = cell_size
         self.screen = pygame.display.set_mode((width * cell_size, height * cell_size))
         pygame.display.set_caption("SIRS Disease Spread Cellular Automata")
-        self.grid = Grid(width, height, infection_prob, recovery_time, susceptible_time)
+        self.grid = Grid(width, height, infection_prob, recovery_prob, waning_prob, delta_t)
         self.grid.infect_random(n=8)
         self.clock = pygame.time.Clock()
         self.running = True
@@ -118,10 +115,18 @@ class Simulation:
                     self.running = False
             self.grid.update()
             self.draw()
-            self.clock.tick(60)  # FPS
+            self.clock.tick(60)
 
         pygame.quit()
 
 if __name__ == "__main__":
-    sim = Simulation(width=100, height=100, cell_size=6, infection_prob=0.15, recovery_time=7, susceptible_time=90)
+    sim = Simulation(
+        width=100, 
+        height=100, 
+        cell_size=6, 
+        infection_prob=0.08,
+        recovery_prob=0.1,     
+        waning_prob=0.002,      
+        delta_t=1               
+    )
     sim.run()
