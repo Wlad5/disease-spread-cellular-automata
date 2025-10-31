@@ -18,7 +18,6 @@ class Cell:
         self.state = state
         self.infection_time = 0
         self.recovered_time = 0
-
 class Grid:
     def __init__(
             self,
@@ -27,7 +26,8 @@ class Grid:
             infection_prob=0.25,
             recovery_prob=0.05,
             waning_prob=0.02,
-            delta_t=1
+            delta_t=1,
+            mixing_rate=0.05 # fraction of population to mix per timestep
             ):
         self.width = width
         self.height = height
@@ -36,7 +36,7 @@ class Grid:
         self.waning_prob = waning_prob
         self.delta_t = delta_t
         self.grid = np.array([[Cell() for _ in range(width)] for _ in range(height)])
-        
+        self.mixing_rate = mixing_rate
         # Add tracking for population fractions
         self.history = {
             'S_frac': [],
@@ -89,10 +89,21 @@ class Grid:
         self.history['R_frac'].append(R_frac)
         self.history['timestep'].append(self.current_timestep)
 
+    def mix_population(self):
+        """Randomly swap the states of a fraction of the population."""
+        total_cells = self.width * self.height
+        n_swaps = int(self.mixing_rate * total_cells)
+        for _ in range(n_swaps):
+            x1, y1 = random.randint(0, self.width - 1), random.randint(0, self.height - 1)
+            x2, y2 = random.randint(0, self.width - 1), random.randint(0, self.height - 1)
+            # Swap states
+            self.grid[y1][x1].state, self.grid[y2][x2].state = self.grid[y2][x2].state, self.grid[y1][x1].state
+
     def update(self):
         # Record fractions before update
         self.record_fractions()
-        
+        # Mix population before disease update
+        self.mix_population()
         new_grid = np.array([[Cell(cell.state) for cell in row] for row in self.grid])
         for y in range(self.height):
             for x in range(self.width):
@@ -116,7 +127,6 @@ class Grid:
                         new_grid[y][x].recovered_time = 0
         self.grid = new_grid
         self.current_timestep += 1
-
 class Simulation:
     def __init__(
             self,
@@ -126,7 +136,8 @@ class Simulation:
             infection_prob=0.25,
             recovery_prob=0.05,
             waning_prob=0.02,
-            delta_t=1
+            delta_t=1,
+            mixing_rate=0.05
             ):
         pygame.init()
         self.width = width
@@ -134,7 +145,7 @@ class Simulation:
         self.cell_size = cell_size
         self.screen = pygame.display.set_mode((width * cell_size, height * cell_size))
         pygame.display.set_caption("SIRS Disease Spread Cellular Automata")
-        self.grid = Grid(width, height, infection_prob, recovery_prob, waning_prob, delta_t)
+        self.grid = Grid(width, height, infection_prob, recovery_prob, waning_prob, delta_t, mixing_rate)
         self.grid.infect_random(n=8)
         self.clock = pygame.time.Clock()
         self.running = True
@@ -190,11 +201,11 @@ if __name__ == "__main__":
         infection_prob=0.08,
         recovery_prob=0.1,     
         waning_prob=0.002,      
-        delta_t=1               
+        delta_t=1,
+        mixing_rate=0.00
     )
     sim.run()
     
-    # Print summary after simulation ends
     history = sim.get_history()
     if len(history['timestep']) > 0:
         print(f"\nSimulation Summary:")
