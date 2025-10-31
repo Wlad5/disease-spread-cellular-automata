@@ -202,7 +202,7 @@ if __name__ == "__main__":
         recovery_prob=0.1,     
         waning_prob=0.002,      
         delta_t=1,
-        mixing_rate=0.000
+        mixing_rate=0.00
     )
     sim.run()
     
