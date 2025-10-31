@@ -203,7 +203,7 @@ if __name__ == "__main__":
         delta_t=1.0,
         initial_infected=0.10,
         t_max=500.0,
-        dt=0.1
+        dt=0.1,
     )
     
     print(f"\nODE Parameters:")
