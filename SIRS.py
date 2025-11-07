@@ -27,7 +27,7 @@ class Grid:
             recovery_prob=0.05,
             waning_prob=0.02,
             delta_t=1,
-            mixing_rate=0.05 # fraction of population to mix per timestep
+            mixing_rate=0.00
             ):
         self.width = width
         self.height = height

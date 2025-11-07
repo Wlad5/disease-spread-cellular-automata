@@ -13,8 +13,8 @@ def run_ca_simulation(width, height, infection_prob, recovery_prob, waning_prob,
     history = grid.history
     return history
 
-def plot_comparison(ca_history, ode_time, ode_states, title):
-    plt.figure(figsize=(12, 6))
+def plot_comparison(ca_history, ode_time, ode_states, title, params):
+    plt.figure(figsize=(12, 7))  # Made figure slightly taller to accommodate parameters
     # CA
     plt.plot(ca_history['timestep'], ca_history['S_frac'], 'b--', label='CA Susceptible')
     plt.plot(ca_history['timestep'], ca_history['I_frac'], 'r--', label='CA Infected')
@@ -28,11 +28,19 @@ def plot_comparison(ca_history, ode_time, ode_states, title):
     plt.title(title)
     plt.legend()
     plt.grid(True, alpha=0.3)
+    
+    # Add parameters text at the bottom
+    param_text = f"Parameters: infection_prob={params['infection_prob']}, recovery_prob={params['recovery_prob']}, "
+    param_text += f"waning_prob={params['waning_prob']}, k={params['k']}, delta_t={params['delta_t']}, "
+    param_text += f"initial_infected={params['initial_infected']}"
+    plt.figtext(0.1, 0.02, param_text, wrap=True, horizontalalignment='left', fontsize=8)
+    
     plt.tight_layout()
+    # Adjust layout to make room for parameter text
+    plt.subplots_adjust(bottom=0.2)
     plt.show()
 
 def main():
-    # Parameters
     infection_prob = 0.08
     recovery_prob = 0.1
     waning_prob = 0.002
@@ -40,10 +48,8 @@ def main():
     k = 8
     steps = 500
     initial_infected_cells = 10
-    # CA grid sizes to compare
-    ca_grid_sizes = [(50, 50), (100, 100), (200, 200)]
+    ca_grid_sizes = [(50, 50), (100, 100), (200, 200), (300, 300), (400, 400), (500, 500)]
     for width, height in ca_grid_sizes:
-        # Set ODE initial infected fraction based on CA grid size and initial infected count
         ode_initial_infected = initial_infected_cells / (width * height)
         ode_time, ode_states, ode_params = solve_sirs_from_ca_params(
             infection_prob=infection_prob,
@@ -56,7 +62,16 @@ def main():
             dt=1.0
         )
         ca_history = run_ca_simulation(width, height, infection_prob, recovery_prob, waning_prob, delta_t, steps, initial_infected=initial_infected_cells)
-        plot_comparison(ca_history, ode_time, ode_states, f"SIRS CA vs ODE (Grid: {width}x{height})")
+        
+        params = {
+            'infection_prob': infection_prob,
+            'recovery_prob': recovery_prob,
+            'waning_prob': waning_prob,
+            'k': k,
+            'delta_t': delta_t,
+            'initial_infected': initial_infected_cells
+        }
+        plot_comparison(ca_history, ode_time, ode_states, f"SIRS CA vs ODE (Grid: {width}x{height})", params)
 
 if __name__ == "__main__":
     main()

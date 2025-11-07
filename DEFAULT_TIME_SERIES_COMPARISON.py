@@ -115,7 +115,7 @@ class TimeSeriesComparison:
         else:
             t_max = 500.0
 
-        initial_infected = 0.01 / (self.width * self.height)  # same initial infected used in CA ///////////////////////////////////////
+        initial_infected = 0.001 / (self.width * self.height)  # same initial infected used in CA ///////////////////////////////////////
         time_points, states, params = solve_sirs_from_ca_params(
             infection_prob=self.infection_prob,
             recovery_prob=self.recovery_prob,
@@ -233,6 +233,9 @@ class TimeSeriesComparison:
         ax_R.legend(fontsize='small')
         ax_R.grid(alpha=0.3)
 
+        param_text = f'Grid: {self.width}x{self.height} | Infection prob: {self.infection_prob:.3f} | Recovery prob: {self.recovery_prob:.3f} | Waning prob: {self.waning_prob:.3f} | Mixing rate: {self.mixing_rate:.3f}'
+        fig.text(0.5, 0.02, param_text, fontsize=8, family='monospace', ha='center')
+
         plt.tight_layout()
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -266,9 +269,9 @@ def main():
     recovery_prob = 0.1
     waning_prob = 0.002
     delta_t = 1.0
-    mixing_rate = 0.1
+    mixing_rate = 0.0
     n_runs = 10
-    max_steps = 1000
+    max_steps = 500
 
     comparison = TimeSeriesComparison(
         width=width,

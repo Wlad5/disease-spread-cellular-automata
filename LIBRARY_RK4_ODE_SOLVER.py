@@ -138,7 +138,7 @@ if __name__ == "__main__":
         waning_prob=0.002,
         k=8,
         delta_t=1.0,
-        initial_infected=0.10,
+        initial_infected=0.001,
         t_max=500.0,
         dt=0.1
     )

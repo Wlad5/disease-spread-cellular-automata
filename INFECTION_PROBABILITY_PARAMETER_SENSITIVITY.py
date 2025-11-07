@@ -38,8 +38,8 @@ params = {
     'num_simulations'       : 5  # Number of simulations per parameter value
 }
 
-# Parameter range for mixing rate sensitivity analysis
-mixing_rate_values = np.linspace(0.0, 1, 5)
+# Parameter range for infection probability sensitivity analysis
+infection_prob_values = np.linspace(0.0, 1, 5)
 
 # ==========================================================
 # Helper: compute initial infected fraction dynamically
@@ -141,7 +141,7 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
 # ==========================================================
 # Main experiment
 # ==========================================================
-def mixing_rate_sensitivity_experiment():
+def infection_prob_sensitivity_experiment():
     total_cells = params['width'] * params['height']
     base_frac = compute_initial_infected_fraction(
         params['width'], params['height'], params['initial_infected_count']
@@ -150,13 +150,13 @@ def mixing_rate_sensitivity_experiment():
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
 
-    print(f"Running sensitivity for mixing_rate...")
+    print(f"Running sensitivity for infection_prob...")
     ca_results = []
     ode_results = []
 
-    for val in mixing_rate_values:
+    for val in infection_prob_values:
         p = params.copy()
-        p['mixing_rate'] = val
+        p['infection_prob'] = val
 
         ca_histories = []
         ode_states_list = []
@@ -204,15 +204,16 @@ def mixing_rate_sensitivity_experiment():
         mean_ode_states = np.mean(ode_states_list, axis=0)
         std_ode_states = np.std(ode_states_list, axis=0)
 
-        print(f"  mixing_rate={val:.3f} → CA I₀={ca_initial_infected_frac:.5f}")
+        print(f"  infection_prob={val:.3f} → CA I₀={ca_initial_infected_frac:.5f}")
 
         ca_results.append((mean_ca, std_ca))
         ode_results.append((ode_time, mean_ode_states, std_ode_states))
 
-    plot_comparison_with_error("mixing_rate", mixing_rate_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
+    # Update the plotting function to handle mean ± std
+    plot_comparison_with_error("infection_prob", infection_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
 
 # ==========================================================
 # Entry point
 # ==========================================================
 if __name__ == "__main__":
-    mixing_rate_sensitivity_experiment()
+    infection_prob_sensitivity_experiment()

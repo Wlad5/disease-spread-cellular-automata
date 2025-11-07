@@ -16,7 +16,7 @@ RECOVERY_PROB = 0.1
 WANING_PROB = 0.002
 DELTA_T = 1.0
 MIXING_RATE = 0.00
-STEPS = 300
+STEPS = 500
 INITIAL_INFECTED_COUNT = 10
 
 # Different initial condition strategies
@@ -141,17 +141,36 @@ for label, init_func in initial_conditions:
     print(f"Saved results for {label}")
     print(f"Finished simulation for {label}. Close the window to continue.")
 
-# Combine and plot
+# Create a single figure with subplots for each scenario
 combined = pd.concat(results, ignore_index=True)
-plt.figure(figsize=(12, 8))
-for label, _ in initial_conditions:
+
+# Create a figure with 2x3 subplots
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+axes = axes.flatten()  # Flatten to make indexing easier
+
+# Plot each scenario
+for idx, (label, _) in enumerate(initial_conditions):
     subset = combined[combined['initial_condition'] == label]
-    plt.plot(subset['timestep'], subset['I_frac'], label=f'I: {label}')
-plt.xlabel('Time step')
-plt.ylabel('Infected Fraction')
-plt.title('SIRS CA: Effect of Initial Conditions')
-plt.legend()
+    ax = axes[idx]
+    
+    # Plot S, I, R populations
+    ax.plot(subset['timestep'], subset['S_frac'], label='S', color='gray')
+    ax.plot(subset['timestep'], subset['I_frac'], label='I', color='red')
+    ax.plot(subset['timestep'], subset['R_frac'], label='R', color='green')
+    
+    ax.set_xlabel('Time step')
+    ax.set_ylabel('Population Fraction')
+    ax.set_title(label)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+# Add common title and parameters
+plt.suptitle('SIRS CA: Population Dynamics for Different Initial Conditions', y=0.95)
+params_text = f'Parameters: Grid={WIDTH}x{HEIGHT}, β={INFECTION_PROB}, γ={RECOVERY_PROB}, ξ={WANING_PROB}, Mix={MIXING_RATE}, Initial Infected={INITIAL_INFECTED_COUNT}'
+plt.figtext(0.5, 0.02, params_text, ha='center', fontsize=8)
+
+# Adjust layout
 plt.tight_layout()
-plt.savefig('sirs_initial_conditions_comparison.png')
+plt.subplots_adjust(top=0.9, bottom=0.1)
 plt.show()
 print("Saved combined plot as sirs_initial_conditions_comparison.png")
