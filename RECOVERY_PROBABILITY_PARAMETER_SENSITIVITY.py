@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import importlib.util
+from scipy.interpolate import interp1d
 
 # ==========================================================
 # Dynamic imports of CA and ODE modules
@@ -139,6 +140,45 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
     plt.show()
 
 # ==========================================================
+# Norm Calculation and Plotting
+# ==========================================================
+def calculate_norm(ca_results, ode_results):
+    norms = {'S': [], 'I': [], 'R': []}
+    for i in range(len(ca_results)):
+        mean_ca, _ = ca_results[i]
+        _, mean_ode_states, _ = ode_results[i]
+
+        # Interpolate ODE results to match CA time steps
+        ca_timesteps = mean_ca['timestep']
+        ode_time = np.linspace(0, len(mean_ode_states) * params['ode_dt'], len(mean_ode_states))
+        interp_ode_S = interp1d(ode_time, mean_ode_states[:, 0], kind='linear', fill_value="extrapolate")
+        interp_ode_I = interp1d(ode_time, mean_ode_states[:, 1], kind='linear', fill_value="extrapolate")
+        interp_ode_R = interp1d(ode_time, mean_ode_states[:, 2], kind='linear', fill_value="extrapolate")
+
+        # Calculate L2 norms for S, I, and R
+        norm_S = np.sqrt(np.sum((mean_ca['S_frac'] - interp_ode_S(ca_timesteps)) ** 2))
+        norm_I = np.sqrt(np.sum((mean_ca['I_frac'] - interp_ode_I(ca_timesteps)) ** 2))
+        norm_R = np.sqrt(np.sum((mean_ca['R_frac'] - interp_ode_R(ca_timesteps)) ** 2))
+
+        norms['S'].append(norm_S)
+        norms['I'].append(norm_I)
+        norms['R'].append(norm_R)
+
+    return norms
+
+def plot_norm_vs_parameter(param_name, param_values, norms):
+    plt.figure(figsize=(10, 6))
+    plt.plot(param_values, norms['S'], marker='o', linestyle='-', label='Norm (S)', color='b')
+    plt.plot(param_values, norms['I'], marker='o', linestyle='-', label='Norm (I)', color='r')
+    plt.plot(param_values, norms['R'], marker='o', linestyle='-', label='Norm (R)', color='g')
+    plt.xlabel(param_name)
+    plt.ylabel('Norm')
+    plt.title(f'Norms for S, I, R vs {param_name}')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+# ==========================================================
 # Main experiment
 # ==========================================================
 def recovery_prob_sensitivity_experiment():
@@ -211,6 +251,10 @@ def recovery_prob_sensitivity_experiment():
 
     # Update the plotting function to handle mean ± std
     plot_comparison_with_error("recovery_prob", recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
+
+    # Calculate norms and plot norm vs parameter
+    norms = calculate_norm(ca_results, ode_results)
+    plot_norm_vs_parameter("recovery_prob", recovery_prob_values, norms)
 
 # ==========================================================
 # Entry point
