@@ -158,8 +158,9 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
             if batch_pos > 0:
                 ax_r.set_yticklabels([])
 
-        plt.tight_layout(rect=[0, 0.02, 1, 0.98])
-        plt.suptitle(f"Parameter Sensitivity: {param_name} (Batch {fig_idx + 1}/{num_figures})", fontsize=16, y=0.995)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.suptitle(f"Parameter Sensitivity: {param_name} (Batch {fig_idx + 1}/{num_figures})", fontsize=16, y=0.98)
+        plt.subplots_adjust(hspace=0.35, wspace=0.15)
         plt.show()
 
 # ==========================================================
