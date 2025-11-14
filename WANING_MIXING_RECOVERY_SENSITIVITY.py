@@ -35,7 +35,7 @@ params = {
     'cell_size'             : 4,
     'initial_infected_count': 10,
     'mixing_rate'           : 0.00,
-    'num_simulations'       : 5  # Number of simulations per parameter value
+    'num_simulations'       : 1  # Number of simulations per parameter value
 }
 
 # Parameter ranges for waning and mixing rates (change together)
@@ -104,55 +104,113 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
 # Plotting with Error Bars
 # ==========================================================
 def plot_comparison_with_error(waning_val, mixing_val, recovery_values, ca_results, ode_results, t_max, ode_dt):
-    """Plot CA vs ODE for different recovery probabilities."""
-    plt.figure(figsize=(16, 10))
+    """Plot CA vs ODE for different recovery probabilities using 3-row layout (S, I, R)."""
+    plt.figure(figsize=(16, 12))
+    num_params = len(recovery_values)
+    
     for i, rec_val in enumerate(recovery_values):
         mean_ca, std_ca = ca_results[i]
         ode_time, mean_ode_states, std_ode_states = ode_results[i]
 
-        # ---- CA plots ----
-        ax_ca = plt.subplot(2, len(recovery_values), i + 1)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
-        ax_ca.set_title(f"CA: recovery_prob={rec_val:.3f}")
-        ax_ca.set_xlabel('Time')
-        ax_ca.set_ylabel('Fraction')
-        ax_ca.set_ylim(0, 1)
+        # ---- Row 1: S (Susceptible) ----
+        ax_s = plt.subplot(3, num_params, i + 1)
+        ax_s.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--', linewidth=2)
+        ax_s.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
+        ax_s.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b', linewidth=2)
+        ax_s.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.1)
+        ax_s.set_title(f"S: recovery_prob={rec_val:.3f}", fontsize=11)
+        ax_s.set_ylabel('Fraction')
+        ax_s.set_ylim(0, 1)
         if i == 0:
-            ax_ca.legend()
+            ax_s.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_s.set_yticklabels([])
 
-        # ---- ODE plots ----
-        ax_ode = plt.subplot(2, len(recovery_values), len(recovery_values) + i + 1)
-        ax_ode.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.2)
-        ax_ode.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.2)
-        ax_ode.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.2)
-        ax_ode.set_title(f"ODE: recovery_prob={rec_val:.3f}")
-        ax_ode.set_xlabel('Time')
-        ax_ode.set_ylabel('Fraction')
-        ax_ode.set_ylim(0, 1)
+        # ---- Row 2: I (Infected) ----
+        ax_i = plt.subplot(3, num_params, num_params + i + 1)
+        ax_i.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--', linewidth=2)
+        ax_i.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
+        ax_i.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r', linewidth=2)
+        ax_i.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.1)
+        ax_i.set_title(f"I: recovery_prob={rec_val:.3f}", fontsize=11)
+        ax_i.set_ylabel('Fraction')
+        ax_i.set_ylim(0, 1)
         if i == 0:
-            ax_ode.legend()
+            ax_i.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_i.set_yticklabels([])
 
-    plt.tight_layout(rect=[0, 0.12, 1, 1])
+        # ---- Row 3: R (Recovered) ----
+        ax_r = plt.subplot(3, num_params, 2 * num_params + i + 1)
+        ax_r.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--', linewidth=2)
+        ax_r.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
+        ax_r.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g', linewidth=2)
+        ax_r.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.1)
+        ax_r.set_title(f"R: recovery_prob={rec_val:.3f}", fontsize=11)
+        ax_r.set_xlabel('Time')
+        ax_r.set_ylabel('Fraction')
+        ax_r.set_ylim(0, 1)
+        if i == 0:
+            ax_r.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_r.set_yticklabels([])
+
+    plt.tight_layout(rect=[0, 0.02, 1, 0.98])
+    plt.suptitle(f"Parameter Sensitivity: recovery_prob (Waning={waning_val:.4f}, Mixing={mixing_val:.3f})", fontsize=16, y=0.995)
+    plt.show()
+
+# ==========================================================
+# Norm calculation and plotting
+# ==========================================================
+def compute_batch_norms(ca_results, ode_results, recovery_values):
+    """
+    Compute L2 norm between CA and ODE trajectories for each recovery probability.
+    Returns lists of norms for S, I, R components.
+    """
+    norms_S = []
+    norms_I = []
+    norms_R = []
     
-    # Add parameter information at the bottom
-    param_info = (
-        f"Parameters: "
-        f"recovery_prob_range=[{recovery_prob_values[0]:.3f}, {recovery_prob_values[-1]:.3f}], "
-        f"infection_prob={params['infection_prob']:.3f}, "
-        f"waning_prob={waning_val:.4f}, mixing_rate={mixing_val:.3f}, "
-        f"num_simulations={params['num_simulations']}, t_max={params['t_max']}"
-    )
-    fig = plt.gcf()
-    fig.text(0.5, 0.02, param_info, ha='center', fontsize=9, wrap=True)
+    for i, rec_val in enumerate(recovery_values):
+        mean_ca, std_ca = ca_results[i]
+        ode_time, mean_ode_states, std_ode_states = ode_results[i]
+        
+        # Interpolate CA results to match ODE time points for fair comparison
+        ca_times = np.array(mean_ca['timestep'])
+        ca_S = np.array(mean_ca['S_frac'])
+        ca_I = np.array(mean_ca['I_frac'])
+        ca_R = np.array(mean_ca['R_frac'])
+        
+        # Interpolate CA to ODE time grid
+        ca_S_interp = np.interp(ode_time, ca_times, ca_S)
+        ca_I_interp = np.interp(ode_time, ca_times, ca_I)
+        ca_R_interp = np.interp(ode_time, ca_times, ca_R)
+        
+        # Compute L2 norms
+        norm_S = np.linalg.norm(ca_S_interp - mean_ode_states[:, 0])
+        norm_I = np.linalg.norm(ca_I_interp - mean_ode_states[:, 1])
+        norm_R = np.linalg.norm(ca_R_interp - mean_ode_states[:, 2])
+        
+        norms_S.append(norm_S)
+        norms_I.append(norm_I)
+        norms_R.append(norm_R)
     
+    return norms_S, norms_I, norms_R
+
+def plot_batch_norms(recovery_values, norms_S, norms_I, norms_R, waning_val, mixing_val):
+    """Plot component norms across recovery probability parameter."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    ax.plot(recovery_values, norms_S, 'o-', label='L2 norm (S)', linewidth=2, markersize=8, color='blue')
+    ax.plot(recovery_values, norms_I, 's-', label='L2 norm (I)', linewidth=2, markersize=8, color='red')
+    ax.plot(recovery_values, norms_R, '^-', label='L2 norm (R)', linewidth=2, markersize=8, color='green')
+    ax.set_xlabel('Recovery Probability', fontsize=12)
+    ax.set_ylabel('L2 Norm', fontsize=12)
+    ax.set_title(f'Component Norms (Waning={waning_val:.4f}, Mixing={mixing_val:.3f})', fontsize=12)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
     plt.show()
 
 # ==========================================================
@@ -237,6 +295,10 @@ def waning_mixing_recovery_sensitivity_experiment():
 
         # Plot results for this waning/mixing combination
         plot_comparison_with_error(waning_val, mixing_val, recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
+        
+        # Compute and plot batch norms
+        norms_S, norms_I, norms_R = compute_batch_norms(ca_results, ode_results, recovery_prob_values)
+        plot_batch_norms(recovery_prob_values, norms_S, norms_I, norms_R, waning_val, mixing_val)
 
 # ==========================================================
 # Entry point

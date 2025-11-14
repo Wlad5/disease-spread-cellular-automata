@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import importlib.util
-from scipy.interpolate import interp1d
 
 # ==========================================================
 # Dynamic imports of CA and ODE modules
@@ -39,8 +38,10 @@ params = {
     'num_simulations'       : 2  # Number of simulations per parameter value
 }
 
-# Parameter range for recovery probability sensitivity analysis
-recovery_prob_values = np.linspace(0.0, 1, 5)
+# Parameter ranges for waning and mixing rates (change together)
+waning_prob_values = np.linspace(0.0, 1.0, 5)
+mixing_rate_values = np.linspace(0.0, 1.0, 5)
+waning_mixing_pairs = list(zip(waning_prob_values, mixing_rate_values))
 
 # ==========================================================
 # Helper: compute initial infected fraction dynamically
@@ -97,106 +98,60 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
     return time_points, states
 
 # ==========================================================
-# Updated Plotting with Error Bars
+# Plotting with Error Bars (simplified)
 # ==========================================================
-def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt):
-    plt.figure(figsize=(16, 12))
-    num_params = len(param_values)
-    
-    for i, val in enumerate(param_values):
-        mean_ca, std_ca = ca_results[i]
-        ode_time, mean_ode_states, std_ode_states = ode_results[i]
+def plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, t_max):
+    """Plot CA vs ODE for susceptible, infected, and recovered with error bars."""
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 
-        # ---- Row 1: S (Susceptible) ----
-        ax_s = plt.subplot(3, num_params, i + 1)
-        ax_s.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--', linewidth=2)
-        ax_s.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
-        ax_s.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b', linewidth=2)
-        ax_s.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.1)
-        ax_s.set_title(f"S: {param_name}={val:.3f}", fontsize=11)
-        ax_s.set_ylabel('Fraction')
-        ax_s.set_ylim(0, 1)
-        if i == 0:
-            ax_s.legend(loc='best', fontsize=9)
-        if i > 0:
-            ax_s.set_yticklabels([])
+    # ---- Susceptible (S) ----
+    ax = axes[0]
+    ax.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--', linewidth=2)
+    ax.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
+    ax.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b', linewidth=2)
+    ax.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.1)
+    ax.set_xlabel('Time', fontsize=12)
+    ax.set_ylabel('Susceptible Fraction', fontsize=12)
+    ax.set_title('Susceptible (S)', fontsize=12)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 1)
 
-        # ---- Row 2: I (Infected) ----
-        ax_i = plt.subplot(3, num_params, num_params + i + 1)
-        ax_i.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--', linewidth=2)
-        ax_i.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
-        ax_i.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r', linewidth=2)
-        ax_i.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.1)
-        ax_i.set_title(f"I: {param_name}={val:.3f}", fontsize=11)
-        ax_i.set_ylabel('Fraction')
-        ax_i.set_ylim(0, 1)
-        if i == 0:
-            ax_i.legend(loc='best', fontsize=9)
-        if i > 0:
-            ax_i.set_yticklabels([])
+    # ---- Infected (I) ----
+    ax = axes[1]
+    ax.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--', linewidth=2)
+    ax.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
+    ax.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r', linewidth=2)
+    ax.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.1)
+    ax.set_xlabel('Time', fontsize=12)
+    ax.set_ylabel('Infected Fraction', fontsize=12)
+    ax.set_title('Infected (I)', fontsize=12)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 1)
 
-        # ---- Row 3: R (Recovered) ----
-        ax_r = plt.subplot(3, num_params, 2 * num_params + i + 1)
-        ax_r.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--', linewidth=2)
-        ax_r.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
-        ax_r.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g', linewidth=2)
-        ax_r.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.1)
-        ax_r.set_title(f"R: {param_name}={val:.3f}", fontsize=11)
-        ax_r.set_xlabel('Time')
-        ax_r.set_ylabel('Fraction')
-        ax_r.set_ylim(0, 1)
-        if i == 0:
-            ax_r.legend(loc='best', fontsize=9)
-        if i > 0:
-            ax_r.set_yticklabels([])
+    # ---- Recovered (R) ----
+    ax = axes[2]
+    ax.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--', linewidth=2)
+    ax.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
+    ax.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g', linewidth=2)
+    ax.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.1)
+    ax.set_xlabel('Time', fontsize=12)
+    ax.set_ylabel('Recovered Fraction', fontsize=12)
+    ax.set_title('Recovered (R)', fontsize=12)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 1)
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.98])
-    plt.suptitle(f"Parameter Sensitivity: {param_name}", fontsize=16, y=0.995)
-    plt.show()
-
-# ==========================================================
-# Norm Calculation and Plotting
-# ==========================================================
-def calculate_norm(ca_results, ode_results):
-    norms = {'S': [], 'I': [], 'R': []}
-    for i in range(len(ca_results)):
-        mean_ca, _ = ca_results[i]
-        _, mean_ode_states, _ = ode_results[i]
-
-        # Interpolate ODE results to match CA time steps
-        ca_timesteps = mean_ca['timestep']
-        ode_time = np.linspace(0, len(mean_ode_states) * params['ode_dt'], len(mean_ode_states))
-        interp_ode_S = interp1d(ode_time, mean_ode_states[:, 0], kind='linear', fill_value="extrapolate")
-        interp_ode_I = interp1d(ode_time, mean_ode_states[:, 1], kind='linear', fill_value="extrapolate")
-        interp_ode_R = interp1d(ode_time, mean_ode_states[:, 2], kind='linear', fill_value="extrapolate")
-
-        # Calculate L2 norms for S, I, and R
-        norm_S = np.sqrt(np.sum((mean_ca['S_frac'] - interp_ode_S(ca_timesteps)) ** 2))
-        norm_I = np.sqrt(np.sum((mean_ca['I_frac'] - interp_ode_I(ca_timesteps)) ** 2))
-        norm_R = np.sqrt(np.sum((mean_ca['R_frac'] - interp_ode_R(ca_timesteps)) ** 2))
-
-        norms['S'].append(norm_S)
-        norms['I'].append(norm_I)
-        norms['R'].append(norm_R)
-
-    return norms
-
-def plot_norm_vs_parameter(param_name, param_values, norms):
-    plt.figure(figsize=(10, 6))
-    plt.plot(param_values, norms['S'], marker='o', linestyle='-', label='Norm (S)', color='b')
-    plt.plot(param_values, norms['I'], marker='o', linestyle='-', label='Norm (I)', color='r')
-    plt.plot(param_values, norms['R'], marker='o', linestyle='-', label='Norm (R)', color='g')
-    plt.xlabel(param_name)
-    plt.ylabel('Norm')
-    plt.title(f'Norms for S, I, R vs {param_name}')
-    plt.legend()
-    plt.grid(True)
+    plt.suptitle(f"Waning={waning_val:.4f}, Mixing={mixing_val:.3f}, Infection={params['infection_prob']:.3f}", fontsize=14, y=0.995)
     plt.show()
 
 # ==========================================================
 # Main experiment
 # ==========================================================
-def recovery_prob_sensitivity_experiment():
+def waning_mixing_infection_sensitivity_experiment():
+    """Experiment: vary waning and mixing rates, use fixed infection probability from params."""
     total_cells = params['width'] * params['height']
     base_frac = compute_initial_infected_fraction(
         params['width'], params['height'], params['initial_infected_count']
@@ -205,18 +160,21 @@ def recovery_prob_sensitivity_experiment():
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
 
-    print(f"Running sensitivity for recovery_prob...")
-    ca_results = []
-    ode_results = []
-
-    for val in recovery_prob_values:
-        p = params.copy()
-        p['recovery_prob'] = val
+    # Loop through paired waning and mixing rates (changing together)
+    for waning_val, mixing_val in waning_mixing_pairs:
+        print(f"\n{'='*60}")
+        print(f"Waning prob: {waning_val:.4f}, Mixing rate: {mixing_val:.3f}")
+        print(f"Fixed infection_prob: {params['infection_prob']:.3f}")
+        print(f"{'='*60}")
 
         ca_histories = []
         ode_states_list = []
 
-        for _ in range(params['num_simulations']):
+        for sim_idx in range(params['num_simulations']):
+            p = params.copy()
+            p['waning_prob'] = waning_val
+            p['mixing_rate'] = mixing_val
+
             ca_hist, ca_initial_infected_frac = run_ca_simulation(
                 infection_prob=p['infection_prob'],
                 recovery_prob=p['recovery_prob'],
@@ -247,7 +205,7 @@ def recovery_prob_sensitivity_experiment():
             'S_frac': np.mean([np.array(hist['S_frac']) for hist in ca_histories], axis=0),
             'I_frac': np.mean([np.array(hist['I_frac']) for hist in ca_histories], axis=0),
             'R_frac': np.mean([np.array(hist['R_frac']) for hist in ca_histories], axis=0),
-            'timestep': ca_histories[0]['timestep']  # Timesteps are the same for all runs
+            'timestep': ca_histories[0]['timestep']
         }
         std_ca = {
             'S_frac': np.std([np.array(hist['S_frac']) for hist in ca_histories], axis=0),
@@ -259,20 +217,15 @@ def recovery_prob_sensitivity_experiment():
         mean_ode_states = np.mean(ode_states_list, axis=0)
         std_ode_states = np.std(ode_states_list, axis=0)
 
-        print(f"  recovery_prob={val:.3f} → CA I₀={ca_initial_infected_frac:.5f}")
+        print(f"  Completed for waning={waning_val:.4f}, mixing={mixing_val:.3f}")
 
-        ca_results.append((mean_ca, std_ca))
-        ode_results.append((ode_time, mean_ode_states, std_ode_states))
+        # Plot comparison with error bars
+        plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, params['t_max'])
 
-    # Update the plotting function to handle mean ± std
-    plot_comparison_with_error("recovery_prob", recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
 
-    # Calculate norms and plot norm vs parameter
-    norms = calculate_norm(ca_results, ode_results)
-    plot_norm_vs_parameter("recovery_prob", recovery_prob_values, norms)
 
 # ==========================================================
 # Entry point
 # ==========================================================
 if __name__ == "__main__":
-    recovery_prob_sensitivity_experiment()
+    waning_mixing_infection_sensitivity_experiment()

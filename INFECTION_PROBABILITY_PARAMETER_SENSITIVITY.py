@@ -36,7 +36,7 @@ params = {
     'cell_size'             : 4,
     'initial_infected_count': 10,
     'mixing_rate'           : 0.00,
-    'num_simulations'       : 5  # Number of simulations per parameter value
+    'num_simulations'       : 1  # Number of simulations per parameter value
 }
 
 # Parameter range for infection probability sensitivity analysis
@@ -100,43 +100,58 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
 # Updated Plotting with Error Bars
 # ==========================================================
 def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt):
-    plt.figure(figsize=(16, 10))
+    plt.figure(figsize=(16, 12))
+    num_params = len(param_values)
+    
     for i, val in enumerate(param_values):
         mean_ca, std_ca = ca_results[i]
         ode_time, mean_ode_states, std_ode_states = ode_results[i]
 
-        # ---- CA plots ----
-        ax_ca = plt.subplot(2, len(param_values), i + 1)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
-        ax_ca.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--')
-        ax_ca.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
-        ax_ca.set_title(f"CA: {param_name}={val:.3f}")
-        ax_ca.set_xlabel('Time')
-        ax_ca.set_ylabel('Fraction')
-        ax_ca.set_ylim(0, 1)
+        # ---- Row 1: S (Susceptible) ----
+        ax_s = plt.subplot(3, num_params, i + 1)
+        ax_s.plot(mean_ca['timestep'], mean_ca['S_frac'], label='CA S', color='b', linestyle='--', linewidth=2)
+        ax_s.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
+        ax_s.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b', linewidth=2)
+        ax_s.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.1)
+        ax_s.set_title(f"S: {param_name}={val:.3f}", fontsize=11)
+        ax_s.set_ylabel('Fraction')
+        ax_s.set_ylim(0, 1)
         if i == 0:
-            ax_ca.legend()
+            ax_s.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_s.set_yticklabels([])
 
-        # ---- ODE plots ----
-        ax_ode = plt.subplot(2, len(param_values), len(param_values) + i + 1)
-        ax_ode.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.2)
-        ax_ode.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.2)
-        ax_ode.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g')
-        ax_ode.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.2)
-        ax_ode.set_title(f"ODE: {param_name}={val:.3f}")
-        ax_ode.set_xlabel('Time')
-        ax_ode.set_ylabel('Fraction')
-        ax_ode.set_ylim(0, 1)
+        # ---- Row 2: I (Infected) ----
+        ax_i = plt.subplot(3, num_params, num_params + i + 1)
+        ax_i.plot(mean_ca['timestep'], mean_ca['I_frac'], label='CA I', color='r', linestyle='--', linewidth=2)
+        ax_i.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
+        ax_i.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r', linewidth=2)
+        ax_i.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.1)
+        ax_i.set_title(f"I: {param_name}={val:.3f}", fontsize=11)
+        ax_i.set_ylabel('Fraction')
+        ax_i.set_ylim(0, 1)
         if i == 0:
-            ax_ode.legend()
+            ax_i.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_i.set_yticklabels([])
 
-    plt.tight_layout(rect=[0, 0.08, 1, 1])
-    plt.suptitle(f"Parameter Sensitivity: {param_name}", fontsize=16, y=1.02)
+        # ---- Row 3: R (Recovered) ----
+        ax_r = plt.subplot(3, num_params, 2 * num_params + i + 1)
+        ax_r.plot(mean_ca['timestep'], mean_ca['R_frac'], label='CA R', color='g', linestyle='--', linewidth=2)
+        ax_r.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
+        ax_r.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g', linewidth=2)
+        ax_r.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.1)
+        ax_r.set_title(f"R: {param_name}={val:.3f}", fontsize=11)
+        ax_r.set_xlabel('Time')
+        ax_r.set_ylabel('Fraction')
+        ax_r.set_ylim(0, 1)
+        if i == 0:
+            ax_r.legend(loc='best', fontsize=9)
+        if i > 0:
+            ax_r.set_yticklabels([])
+
+    plt.tight_layout(rect=[0, 0.02, 1, 0.98])
+    plt.suptitle(f"Parameter Sensitivity: {param_name}", fontsize=16, y=0.995)
     plt.show()
 
 # ==========================================================

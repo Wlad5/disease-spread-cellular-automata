@@ -22,7 +22,8 @@ class TimeSeriesComparison:
                  recovery_prob: float = 0.1,
                  waning_prob: float = 0.002,
                  delta_t: float = 1.0,
-                 mixing_rate: float = 0.00):
+                 mixing_rate: float = 0.00,
+                 initial_infected_count: int = 10):
         self.width = width
         self.height = height
         self.infection_prob = infection_prob
@@ -30,6 +31,7 @@ class TimeSeriesComparison:
         self.waning_prob = waning_prob
         self.delta_t = delta_t
         self.mixing_rate = mixing_rate
+        self.initial_infected_count = initial_infected_count
 
         # storage
         self.ca_runs: List[pd.DataFrame] = []
@@ -48,15 +50,15 @@ class TimeSeriesComparison:
                     self.infection_prob, self.recovery_prob,
                     self.waning_prob, self.delta_t,
                     self.mixing_rate)
-        grid.infect_random(n=10) #/////////////////////////////////////////////////////////////////////////
+        grid.infect_random(n=self.initial_infected_count)
 
         for step in range(max_steps):
             grid.update()
             _, I_frac, _ = grid.get_population_fractions()
             # early stop if epidemic died out
-            if step > 100 and I_frac < 0.0001:
-                # print(f"  CA: died out at step {step}")
-                break
+            # if step > 100 and I_frac < 0.0001:
+            #     # print(f"  CA: died out at step {step}")
+            #     break
 
         # record final fractions (the code you provided records before updates; we ensure final record)
         grid.record_fractions()
@@ -115,7 +117,8 @@ class TimeSeriesComparison:
         else:
             t_max = 500.0
 
-        initial_infected = 0.001 / (self.width * self.height)  # same initial infected used in CA ///////////////////////////////////////
+        # Calculate initial_infected based on number of initially infected cells
+        initial_infected = self.initial_infected_count / (self.width * self.height)
         time_points, states, params = solve_sirs_from_ca_params(
             infection_prob=self.infection_prob,
             recovery_prob=self.recovery_prob,
@@ -263,13 +266,14 @@ def main():
     print("SIRS Model: Run 15 CA experiments and compare to ODE")
     print("=" * 70)
 
-    width = 50
-    height = 50
+    width = 100
+    height = 100
     infection_prob = 0.08
     recovery_prob = 0.1
     waning_prob = 0.002
     delta_t = 1.0
     mixing_rate = 0.0
+    initial_infected_count = 10
     n_runs = 10
     max_steps = 500
 
@@ -280,7 +284,8 @@ def main():
         recovery_prob=recovery_prob,
         waning_prob=waning_prob,
         delta_t=delta_t,
-        mixing_rate=mixing_rate
+        mixing_rate=mixing_rate,
+        initial_infected_count=initial_infected_count
     )
 
     combined = comparison.run_multiple_ca_simulations(n_runs=n_runs, max_steps=max_steps)
