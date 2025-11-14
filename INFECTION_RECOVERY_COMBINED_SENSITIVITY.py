@@ -43,10 +43,10 @@ params = {
     'ode_dt'                : 0.1,
     'cell_size'             : 4,
     'initial_infected_count': 10,
-    'width'                 : 20,
-    'height'                : 20,
+    'width'                 : 10,
+    'height'                : 10,
     'mixing_rate'           : 0.0,  # No mixing
-    'num_simulations'       : 4
+    'num_simulations'       : 1
 }
 
 # Parameter ranges for combined analysis
@@ -138,52 +138,65 @@ def calculate_norm(ca_history, ode_time, ode_states):
 def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_labels):
     """
     Plot heatmaps for L2 norms of S, I, R across infection_prob and recovery_prob.
+    Creates 3 separate figures, one for each state (S, I, R).
+    Parameters start from smallest values in bottom left corner.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    # Prepare data for heatmaps - flip vertically so smallest infection prob is at bottom
+    data_S = np.array(norms_S)[::-1, :]
+    data_I = np.array(norms_I)[::-1, :]
+    data_R = np.array(norms_R)[::-1, :]
     
-    # Prepare data for heatmaps
-    data_S = np.array(norms_S)
-    data_I = np.array(norms_I)
-    data_R = np.array(norms_R)
+    # Flip labels to match the flipped data
+    infection_labels_flipped = infection_labels[::-1]
     
     # Plot heatmap for S
-    sns.heatmap(data_S, xticklabels=recovery_labels, yticklabels=infection_labels,
-                cmap='YlOrRd', ax=axes[0], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[0].set_title('L2 Norm: Susceptible (S)', fontsize=12, fontweight='bold')
-    axes[0].set_xlabel('Recovery Probability', fontsize=11)
-    axes[0].set_ylabel('Infection Probability', fontsize=11)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_S, xticklabels=recovery_labels, yticklabels=infection_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Susceptible (S)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Recovery Probability', fontsize=12)
+    ax.set_ylabel('Infection Probability', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('heatmap_S_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for S saved to 'heatmap_S_infection_recovery_combined.png'")
+    plt.close()
     
     # Plot heatmap for I
-    sns.heatmap(data_I, xticklabels=recovery_labels, yticklabels=infection_labels,
-                cmap='YlOrRd', ax=axes[1], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[1].set_title('L2 Norm: Infected (I)', fontsize=12, fontweight='bold')
-    axes[1].set_xlabel('Recovery Probability', fontsize=11)
-    axes[1].set_ylabel('Infection Probability', fontsize=11)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_I, xticklabels=recovery_labels, yticklabels=infection_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Infected (I)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Recovery Probability', fontsize=12)
+    ax.set_ylabel('Infection Probability', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('heatmap_I_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for I saved to 'heatmap_I_infection_recovery_combined.png'")
+    plt.close()
     
     # Plot heatmap for R
-    sns.heatmap(data_R, xticklabels=recovery_labels, yticklabels=infection_labels,
-                cmap='YlOrRd', ax=axes[2], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[2].set_title('L2 Norm: Recovered (R)', fontsize=12, fontweight='bold')
-    axes[2].set_xlabel('Recovery Probability', fontsize=11)
-    axes[2].set_ylabel('Infection Probability', fontsize=11)
-    
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_R, xticklabels=recovery_labels, yticklabels=infection_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Recovered (R)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Recovery Probability', fontsize=12)
+    ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmaps_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap plot saved to 'heatmaps_infection_recovery_combined.png'")
-    plt.show()
+    plt.savefig('heatmap_R_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for R saved to 'heatmap_R_infection_recovery_combined.png'")
+    plt.close()
 
 # ==========================================================
 # Helper plotting functions for intermediate results
 # ==========================================================
-def _save_timeseries_to_csv(recovery_results_with_all, infection_prob, recovery_probs, experiment_name):
+def _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name):
     """Save time series data with mean and std deviation to CSV files."""
     for recovery_idx, recovery_prob in enumerate(recovery_probs):
-        ca_histories, ode_time, ode_states_mean = recovery_results_with_all[recovery_idx]
+        ca_histories, ode_time, ode_states_mean = recovery_results[recovery_idx]
         
-        filename = f'{experiment_name}_infection_{infection_prob:.4f}_recovery_{recovery_prob:.4f}.csv'
+        filename = f'{experiment_name}_infection_{infection_prob:.4f}_recovery_{recovery_prob:.6f}.csv'
         
         with open(filename, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -258,18 +271,15 @@ def _plot_partial_heatmaps(norms_S, norms_I, norms_R, infection_labels_partial, 
     print(f"  → Partial heatmap saved")
     plt.close()
 
-def _plot_timeseries_for_infection(recovery_results_with_all, infection_prob, recovery_probs, experiment_name):
+def _plot_timeseries_for_infection(recovery_results, infection_prob, recovery_probs, experiment_name):
     """
     Plot time series for all recovery_prob values of a given infection_prob.
-    Organization: 3 rows (S, I, R states) × N columns (recovery_prob values)
+    Organization: 3 rows (S, I, R states) × 5 columns (recovery_prob values per batch)
     Each cell shows CA vs ODE curves with uncertainty bands.
+    Plots are generated in batches of 5 recovery probabilities per figure.
     """
     num_recovery = len(recovery_probs)
-    fig, axes = plt.subplots(3, num_recovery, figsize=(5 * num_recovery, 12))
-    
-    # Handle case with single recovery prob
-    if num_recovery == 1:
-        axes = axes.reshape(3, 1)
+    plots_per_row = 5
     
     # Row 0: S (Susceptible), Row 1: I (Infected), Row 2: R (Recovered)
     states = [
@@ -278,52 +288,85 @@ def _plot_timeseries_for_infection(recovery_results_with_all, infection_prob, re
         (2, 'R', 'green')
     ]
     
-    for row, (state_idx, state_name, color) in enumerate(states):
-        for col, (recovery_idx, recovery_prob) in enumerate(zip(range(num_recovery), recovery_probs)):
-            ax = axes[row, col]
-            
-            ca_histories, ode_time, ode_states = recovery_results_with_all[recovery_idx]
-            ca_timesteps = np.array(ca_histories[0]['timestep'])
-            
-            # Calculate mean and std for CA
-            ca_S_all = np.array([h['S_frac'] for h in ca_histories])
-            ca_I_all = np.array([h['I_frac'] for h in ca_histories])
-            ca_R_all = np.array([h['R_frac'] for h in ca_histories])
-            
-            ca_means = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
-            ca_stds = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
-            
-            # CA plot with confidence band
-            ax.plot(ca_timesteps, ca_means[state_idx],
-                   linestyle='--', color=color, alpha=0.8, linewidth=2.5, label=f'CA {state_name} (mean)')
-            ax.fill_between(ca_timesteps, 
-                            ca_means[state_idx] - ca_stds[state_idx],
-                            ca_means[state_idx] + ca_stds[state_idx],
-                            color=color, alpha=0.2, label=f'CA {state_name} (±1 std)')
-            
-            # ODE plot
-            ax.plot(ode_time, ode_states[:, state_idx], linestyle='-', color=color, linewidth=2.5, label=f'ODE {state_name}')
-            
-            ax.set_xlabel('Time', fontsize=10)
-            ax.set_ylabel('Fraction', fontsize=10)
-            ax.set_title(f'{state_name} - Recovery: {recovery_prob:.3f}', fontsize=11, fontweight='bold')
-            ax.set_ylim(0, 1)
-            ax.grid(True, alpha=0.3)
-            ax.legend(fontsize=8)
+    # Calculate mean and std for all CA simulations once
+    ca_S_all = np.array([h['S_frac'] for h in recovery_results[0][0]])
+    ca_I_all = np.array([h['I_frac'] for h in recovery_results[0][0]])
+    ca_R_all = np.array([h['R_frac'] for h in recovery_results[0][0]])
     
-    # Add a main title for the entire figure
-    fig.suptitle(f'Time Series for Infection Prob: {infection_prob:.3f} (varying recovery prob)', 
-                 fontsize=14, fontweight='bold', y=0.995)
+    ca_means_template = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
+    ca_stds_template = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
     
-    # Save plot
-    plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}.png'
-    plt.tight_layout()
-    plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
-    print(f"  → Time series plot saved: {plot_filename}")
-    plt.close()
+    # Create batches
+    num_batches = (num_recovery + plots_per_row - 1) // plots_per_row
+    
+    for batch_num in range(num_batches):
+        start_idx = batch_num * plots_per_row
+        end_idx = min(start_idx + plots_per_row, num_recovery)
+        batch_size = end_idx - start_idx
+        
+        # Create figure with 3 rows and batch_size columns
+        fig, axes = plt.subplots(3, batch_size, figsize=(5 * batch_size, 12))
+        
+        # Handle case with single column
+        if batch_size == 1:
+            axes = axes.reshape(3, 1)
+        
+        for row, (state_idx, state_name, color) in enumerate(states):
+            for batch_col, recovery_idx in enumerate(range(start_idx, end_idx)):
+                ax = axes[row, batch_col]
+                recovery_prob = recovery_probs[recovery_idx]
+                
+                ca_histories, ode_time, ode_states = recovery_results[recovery_idx]
+                ca_timesteps = np.array(ca_histories[0]['timestep'])
+                
+                # Calculate mean and std for CA
+                ca_S_all = np.array([h['S_frac'] for h in ca_histories])
+                ca_I_all = np.array([h['I_frac'] for h in ca_histories])
+                ca_R_all = np.array([h['R_frac'] for h in ca_histories])
+                
+                ca_means = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
+                ca_stds = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
+                
+                # CA plot with confidence band
+                ax.plot(ca_timesteps, ca_means[state_idx],
+                       linestyle='--', color=color, alpha=0.8, linewidth=2.5, label=f'CA {state_name} (mean)')
+                ax.fill_between(ca_timesteps, 
+                                ca_means[state_idx] - ca_stds[state_idx],
+                                ca_means[state_idx] + ca_stds[state_idx],
+                                color=color, alpha=0.2, label=f'CA {state_name} (±1 std)')
+                
+                # ODE plot
+                ax.plot(ode_time, ode_states[:, state_idx], linestyle='-', color=color, linewidth=2.5, label=f'ODE {state_name}')
+                
+                ax.set_xlabel('Time', fontsize=10)
+                ax.set_ylabel('Fraction', fontsize=10)
+                ax.set_title(f'{state_name} - Recovery: {recovery_prob:.4f}', fontsize=11, fontweight='bold')
+                ax.set_ylim(0, 1)
+                ax.grid(True, alpha=0.3)
+                ax.legend(fontsize=8)
+        
+        # Add a main title for the batch
+        if num_batches > 1:
+            batch_label = f"Batch {batch_num + 1}/{num_batches}"
+        else:
+            batch_label = ""
+        
+        fig.suptitle(f'Time Series for Infection Prob: {infection_prob:.3f} (varying recovery prob) - {batch_label}', 
+                     fontsize=14, fontweight='bold', y=0.995)
+        
+        # Save plot
+        if num_batches > 1:
+            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}_batch{batch_num + 1}.png'
+        else:
+            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}.png'
+        
+        plt.tight_layout()
+        plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
+        print(f"  → Time series plot saved: {plot_filename}")
+        plt.close()
     
     # Save CSV data
-    _save_timeseries_to_csv(recovery_results_with_all, infection_prob, recovery_probs, experiment_name)
+    _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name)
 
 # ==========================================================
 # Main experiment

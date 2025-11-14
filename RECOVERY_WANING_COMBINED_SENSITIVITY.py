@@ -46,12 +46,12 @@ params = {
     'width'                 : 20,
     'height'                : 20,
     'mixing_rate'           : 0.0,  # No mixing
-    'num_simulations'       : 4
+    'num_simulations'       : 1
 }
 
 # Parameter ranges for combined analysis
-recovery_prob_values = np.linspace(0.05, 0.30, 6)
-waning_prob_values = np.linspace(0.0001, 0.010, 6)
+recovery_prob_values = np.linspace(0.05, 0.50, 10)
+waning_prob_values = np.linspace(0.05, 0.50, 10)
 
 # ==========================================================
 # Helper: compute initial infected fraction dynamically
@@ -138,42 +138,55 @@ def calculate_norm(ca_history, ode_time, ode_states):
 def plot_norm_heatmaps(norms_S, norms_I, norms_R, recovery_labels, waning_labels):
     """
     Plot heatmaps for L2 norms of S, I, R across recovery_prob and waning_prob.
+    Creates 3 separate figures, one for each state (S, I, R).
+    Parameters start from smallest values in bottom left corner.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    # Prepare data for heatmaps - flip vertically so smallest recovery prob is at bottom
+    data_S = np.array(norms_S)[::-1, :]
+    data_I = np.array(norms_I)[::-1, :]
+    data_R = np.array(norms_R)[::-1, :]
     
-    # Prepare data for heatmaps
-    data_S = np.array(norms_S)
-    data_I = np.array(norms_I)
-    data_R = np.array(norms_R)
+    # Flip labels to match the flipped data
+    recovery_labels_flipped = recovery_labels[::-1]
     
     # Plot heatmap for S
-    sns.heatmap(data_S, xticklabels=waning_labels, yticklabels=recovery_labels,
-                cmap='YlOrRd', ax=axes[0], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[0].set_title('L2 Norm: Susceptible (S)', fontsize=12, fontweight='bold')
-    axes[0].set_xlabel('Waning Probability', fontsize=11)
-    axes[0].set_ylabel('Recovery Probability', fontsize=11)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_S, xticklabels=waning_labels, yticklabels=recovery_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Susceptible (S)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Waning Probability', fontsize=12)
+    ax.set_ylabel('Recovery Probability', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('heatmap_S_recovery_waning_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for S saved to 'heatmap_S_recovery_waning_combined.png'")
+    plt.close()
     
     # Plot heatmap for I
-    sns.heatmap(data_I, xticklabels=waning_labels, yticklabels=recovery_labels,
-                cmap='YlOrRd', ax=axes[1], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[1].set_title('L2 Norm: Infected (I)', fontsize=12, fontweight='bold')
-    axes[1].set_xlabel('Waning Probability', fontsize=11)
-    axes[1].set_ylabel('Recovery Probability', fontsize=11)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_I, xticklabels=waning_labels, yticklabels=recovery_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Infected (I)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Waning Probability', fontsize=12)
+    ax.set_ylabel('Recovery Probability', fontsize=12)
+    plt.tight_layout()
+    plt.savefig('heatmap_I_recovery_waning_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for I saved to 'heatmap_I_recovery_waning_combined.png'")
+    plt.close()
     
     # Plot heatmap for R
-    sns.heatmap(data_R, xticklabels=waning_labels, yticklabels=recovery_labels,
-                cmap='YlOrRd', ax=axes[2], cbar_kws={'label': 'L2 Norm'},
-                annot=True, fmt='.3f')
-    axes[2].set_title('L2 Norm: Recovered (R)', fontsize=12, fontweight='bold')
-    axes[2].set_xlabel('Waning Probability', fontsize=11)
-    axes[2].set_ylabel('Recovery Probability', fontsize=11)
-    
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(data_R, xticklabels=waning_labels, yticklabels=recovery_labels_flipped,
+                cmap='YlOrRd', ax=ax, cbar_kws={'label': 'L2 Norm'},
+                annot=True, fmt='.2f', annot_kws={'size': 6})
+    ax.set_title('L2 Norm: Recovered (R)', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Waning Probability', fontsize=12)
+    ax.set_ylabel('Recovery Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmaps_recovery_waning_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap plot saved to 'heatmaps_recovery_waning_combined.png'")
-    plt.show()
+    plt.savefig('heatmap_R_recovery_waning_combined.png', dpi=300, bbox_inches='tight')
+    print("Heatmap for R saved to 'heatmap_R_recovery_waning_combined.png'")
+    plt.close()
 
 # ==========================================================
 # Helper plotting functions for intermediate results
@@ -261,15 +274,12 @@ def _plot_partial_heatmaps(norms_S, norms_I, norms_R, recovery_labels_partial, w
 def _plot_timeseries_for_recovery(waning_results, recovery_prob, waning_probs, experiment_name):
     """
     Plot time series for all waning_prob values of a given recovery_prob.
-    Organization: 3 rows (S, I, R states) × N columns (waning_prob values)
+    Organization: 3 rows (S, I, R states) × 5 columns (waning_prob values per batch)
     Each cell shows CA vs ODE curves with uncertainty bands.
+    Plots are generated in batches of 5 waning probabilities per figure.
     """
     num_waning = len(waning_probs)
-    fig, axes = plt.subplots(3, num_waning, figsize=(5 * num_waning, 12))
-    
-    # Handle case with single waning prob
-    if num_waning == 1:
-        axes = axes.reshape(3, 1)
+    plots_per_row = 5
     
     # Row 0: S (Susceptible), Row 1: I (Infected), Row 2: R (Recovered)
     states = [
@@ -278,49 +288,82 @@ def _plot_timeseries_for_recovery(waning_results, recovery_prob, waning_probs, e
         (2, 'R', 'green')
     ]
     
-    for row, (state_idx, state_name, color) in enumerate(states):
-        for col, (waning_idx, waning_prob) in enumerate(zip(range(num_waning), waning_probs)):
-            ax = axes[row, col]
-            
-            ca_histories, ode_time, ode_states = waning_results[waning_idx]
-            ca_timesteps = np.array(ca_histories[0]['timestep'])
-            
-            # Calculate mean and std for CA
-            ca_S_all = np.array([h['S_frac'] for h in ca_histories])
-            ca_I_all = np.array([h['I_frac'] for h in ca_histories])
-            ca_R_all = np.array([h['R_frac'] for h in ca_histories])
-            
-            ca_means = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
-            ca_stds = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
-            
-            # CA plot with confidence band
-            ax.plot(ca_timesteps, ca_means[state_idx],
-                   linestyle='--', color=color, alpha=0.8, linewidth=2.5, label=f'CA {state_name} (mean)')
-            ax.fill_between(ca_timesteps, 
-                            ca_means[state_idx] - ca_stds[state_idx],
-                            ca_means[state_idx] + ca_stds[state_idx],
-                            color=color, alpha=0.2, label=f'CA {state_name} (±1 std)')
-            
-            # ODE plot
-            ax.plot(ode_time, ode_states[:, state_idx], linestyle='-', color=color, linewidth=2.5, label=f'ODE {state_name}')
-            
-            ax.set_xlabel('Time', fontsize=10)
-            ax.set_ylabel('Fraction', fontsize=10)
-            ax.set_title(f'{state_name} - Waning: {waning_prob:.4f}', fontsize=11, fontweight='bold')
-            ax.set_ylim(0, 1)
-            ax.grid(True, alpha=0.3)
-            ax.legend(fontsize=8)
+    # Calculate mean and std for all CA simulations once
+    ca_S_all = np.array([h['S_frac'] for h in waning_results[0][0]])
+    ca_I_all = np.array([h['I_frac'] for h in waning_results[0][0]])
+    ca_R_all = np.array([h['R_frac'] for h in waning_results[0][0]])
     
-    # Add a main title for the entire figure
-    fig.suptitle(f'Time Series for Recovery Prob: {recovery_prob:.3f} (varying waning prob)', 
-                 fontsize=14, fontweight='bold', y=0.995)
+    ca_means_template = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
+    ca_stds_template = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
     
-    # Save plot
-    plot_filename = f'{experiment_name}_recovery_{recovery_prob:.4f}.png'
-    plt.tight_layout()
-    plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
-    print(f"  → Time series plot saved: {plot_filename}")
-    plt.close()
+    # Create batches
+    num_batches = (num_waning + plots_per_row - 1) // plots_per_row
+    
+    for batch_num in range(num_batches):
+        start_idx = batch_num * plots_per_row
+        end_idx = min(start_idx + plots_per_row, num_waning)
+        batch_size = end_idx - start_idx
+        
+        # Create figure with 3 rows and batch_size columns
+        fig, axes = plt.subplots(3, batch_size, figsize=(5 * batch_size, 12))
+        
+        # Handle case with single column
+        if batch_size == 1:
+            axes = axes.reshape(3, 1)
+        
+        for row, (state_idx, state_name, color) in enumerate(states):
+            for batch_col, waning_idx in enumerate(range(start_idx, end_idx)):
+                ax = axes[row, batch_col]
+                waning_prob = waning_probs[waning_idx]
+                
+                ca_histories, ode_time, ode_states = waning_results[waning_idx]
+                ca_timesteps = np.array(ca_histories[0]['timestep'])
+                
+                # Calculate mean and std for CA
+                ca_S_all = np.array([h['S_frac'] for h in ca_histories])
+                ca_I_all = np.array([h['I_frac'] for h in ca_histories])
+                ca_R_all = np.array([h['R_frac'] for h in ca_histories])
+                
+                ca_means = [np.mean(ca_S_all, axis=0), np.mean(ca_I_all, axis=0), np.mean(ca_R_all, axis=0)]
+                ca_stds = [np.std(ca_S_all, axis=0), np.std(ca_I_all, axis=0), np.std(ca_R_all, axis=0)]
+                
+                # CA plot with confidence band
+                ax.plot(ca_timesteps, ca_means[state_idx],
+                       linestyle='--', color=color, alpha=0.8, linewidth=2.5, label=f'CA {state_name} (mean)')
+                ax.fill_between(ca_timesteps, 
+                                ca_means[state_idx] - ca_stds[state_idx],
+                                ca_means[state_idx] + ca_stds[state_idx],
+                                color=color, alpha=0.2, label=f'CA {state_name} (±1 std)')
+                
+                # ODE plot
+                ax.plot(ode_time, ode_states[:, state_idx], linestyle='-', color=color, linewidth=2.5, label=f'ODE {state_name}')
+                
+                ax.set_xlabel('Time', fontsize=10)
+                ax.set_ylabel('Fraction', fontsize=10)
+                ax.set_title(f'{state_name} - Waning: {waning_prob:.4f}', fontsize=11, fontweight='bold')
+                ax.set_ylim(0, 1)
+                ax.grid(True, alpha=0.3)
+                ax.legend(fontsize=8)
+        
+        # Add a main title for the batch
+        if num_batches > 1:
+            batch_label = f"Batch {batch_num + 1}/{num_batches}"
+        else:
+            batch_label = ""
+        
+        fig.suptitle(f'Time Series for Recovery Prob: {recovery_prob:.3f} (varying waning prob) - {batch_label}', 
+                     fontsize=14, fontweight='bold', y=0.995)
+        
+        # Save plot
+        if num_batches > 1:
+            plot_filename = f'{experiment_name}_recovery_{recovery_prob:.4f}_batch{batch_num + 1}.png'
+        else:
+            plot_filename = f'{experiment_name}_recovery_{recovery_prob:.4f}.png'
+        
+        plt.tight_layout()
+        plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
+        print(f"  → Time series plot saved: {plot_filename}")
+        plt.close()
     
     # Save CSV data
     _save_timeseries_to_csv(waning_results, recovery_prob, waning_probs, experiment_name)
