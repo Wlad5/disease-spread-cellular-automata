@@ -50,8 +50,8 @@ params = {
 }
 
 # Parameter ranges for combined analysis
-infection_prob_values = np.linspace(0.02, 0.12, 6)
-recovery_prob_values = np.linspace(0.05, 0.30, 6)
+infection_prob_values = np.linspace(0.02, 0.12, 7)
+recovery_prob_values = np.linspace(0.05, 0.30, 7)
 
 # ==========================================================
 # Helper: compute initial infected fraction dynamically
@@ -133,9 +133,20 @@ def calculate_norm(ca_history, ode_time, ode_states):
     return {'S': norm_S, 'I': norm_I, 'R': norm_R}
 
 # ==========================================================
+# Directory setup for outputs
+# ==========================================================
+def ensure_output_directories(initial_infected_count):
+    """Create output directories if they don't exist."""
+    csv_dir = f'infection_recovery_csv_infected_{initial_infected_count}'
+    img_dir = f'infection_recovery_images_infected_{initial_infected_count}'
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(img_dir, exist_ok=True)
+    return csv_dir, img_dir
+
+# ==========================================================
 # Heatmap plots
 # ==========================================================
-def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_labels):
+def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_labels, initial_infected_count, img_dir):
     """
     Plot heatmaps for L2 norms of S, I, R across infection_prob and recovery_prob.
     Creates 3 separate figures, one for each state (S, I, R).
@@ -158,8 +169,9 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_lab
     ax.set_xlabel('Recovery Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_S_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for S saved to 'heatmap_S_infection_recovery_combined.png'")
+    heatmap_path = os.path.join(img_dir, f'heatmap_S_infection_recovery_combined_infected_{initial_infected_count}.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for S saved to '{heatmap_path}'")
     plt.close()
     
     # Plot heatmap for I
@@ -171,8 +183,9 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_lab
     ax.set_xlabel('Recovery Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_I_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for I saved to 'heatmap_I_infection_recovery_combined.png'")
+    heatmap_path = os.path.join(img_dir, f'heatmap_I_infection_recovery_combined_infected_{initial_infected_count}.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for I saved to '{heatmap_path}'")
     plt.close()
     
     # Plot heatmap for R
@@ -184,21 +197,23 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_lab
     ax.set_xlabel('Recovery Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_R_infection_recovery_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for R saved to 'heatmap_R_infection_recovery_combined.png'")
+    heatmap_path = os.path.join(img_dir, f'heatmap_R_infection_recovery_combined_infected_{initial_infected_count}.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for R saved to '{heatmap_path}'")
     plt.close()
 
 # ==========================================================
 # Helper plotting functions for intermediate results
 # ==========================================================
-def _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name):
+def _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name, initial_infected_count, csv_dir):
     """Save time series data with mean and std deviation to CSV files."""
     for recovery_idx, recovery_prob in enumerate(recovery_probs):
         ca_histories, ode_time, ode_states_mean = recovery_results[recovery_idx]
         
-        filename = f'{experiment_name}_infection_{infection_prob:.4f}_recovery_{recovery_prob:.6f}.csv'
+        filename = f'{experiment_name}_infection_{infection_prob:.4f}_recovery_{recovery_prob:.6f}_infected_{initial_infected_count}.csv'
+        filepath = os.path.join(csv_dir, filename)
         
-        with open(filename, 'w', newline='') as f:
+        with open(filepath, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['time', 'CA_S_mean', 'CA_S_std', 'CA_I_mean', 'CA_I_std', 'CA_R_mean', 'CA_R_std', 
                            'ODE_S', 'ODE_I', 'ODE_R'])
@@ -271,7 +286,7 @@ def _plot_partial_heatmaps(norms_S, norms_I, norms_R, infection_labels_partial, 
     print(f"  → Partial heatmap saved")
     plt.close()
 
-def _plot_timeseries_for_infection(recovery_results, infection_prob, recovery_probs, experiment_name):
+def _plot_timeseries_for_infection(recovery_results, infection_prob, recovery_probs, experiment_name, initial_infected_count, csv_dir, img_dir):
     """
     Plot time series for all recovery_prob values of a given infection_prob.
     Organization: 3 rows (S, I, R states) × 5 columns (recovery_prob values per batch)
@@ -356,22 +371,26 @@ def _plot_timeseries_for_infection(recovery_results, infection_prob, recovery_pr
         
         # Save plot
         if num_batches > 1:
-            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}_batch{batch_num + 1}.png'
+            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}_batch{batch_num + 1}_infected_{initial_infected_count}.png'
         else:
-            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}.png'
+            plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}_infected_{initial_infected_count}.png'
         
+        plot_filepath = os.path.join(img_dir, plot_filename)
         plt.tight_layout()
-        plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
-        print(f"  → Time series plot saved: {plot_filename}")
+        plt.savefig(plot_filepath, dpi=150, bbox_inches='tight')
+        print(f"  → Time series plot saved: {plot_filepath}")
         plt.close()
     
     # Save CSV data
-    _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name)
+    _save_timeseries_to_csv(recovery_results, infection_prob, recovery_probs, experiment_name, initial_infected_count, csv_dir)
 
 # ==========================================================
 # Main experiment
 # ==========================================================
 def infection_recovery_combined_sensitivity_experiment():
+    # Create output directories
+    csv_dir, img_dir = ensure_output_directories(params['initial_infected_count'])
+    
     print("="*70)
     print("Infection Probability + Recovery Probability Combined Sensitivity Analysis")
     print("="*70)
@@ -380,6 +399,7 @@ def infection_recovery_combined_sensitivity_experiment():
     print(f"Simulations per combination: {params['num_simulations']}")
     print(f"Mixing Rate: {params['mixing_rate']} (fixed)")
     print(f"Waning Probability: {params['waning_prob']} (fixed)")
+    print(f"Initial Infected Count: {params['initial_infected_count']}")
     print()
     
     # Store results: results[infection_idx][recovery_idx] = (ca_history, ode_time, ode_states)
@@ -477,7 +497,7 @@ def infection_recovery_combined_sensitivity_experiment():
         
         # Plot time series for this infection probability and save CSV data
         _plot_timeseries_for_infection(recovery_results, infection_prob, recovery_prob_values,
-                                       'INFECTION_RECOVERY_COMBINED_SENSITIVITY')
+                                       'INFECTION_RECOVERY_COMBINED_SENSITIVITY', params['initial_infected_count'], csv_dir, img_dir)
         
         print(f"Plots and data saved for infection prob {infection_prob:.4f}\n")
     
@@ -488,7 +508,7 @@ def infection_recovery_combined_sensitivity_experiment():
     # Plot final complete heatmaps
     print("\n" + "="*70)
     print("Generating final complete heatmaps...")
-    plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_labels)
+    plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, recovery_labels, params['initial_infected_count'], img_dir)
     
     print("\n" + "="*70)
     print("✓ Analysis complete!")

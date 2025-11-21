@@ -33,7 +33,7 @@ params = {
     'width'                 : 50,
     'height'                : 50,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 1  # Number of simulations per parameter value
 }
@@ -101,6 +101,47 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
     return time_points, states
 
 # ==========================================================
+# Directory creation and data saving
+# ==========================================================
+def ensure_directories(initial_infected_count):
+    """Create necessary directories for CSV and image outputs."""
+    csv_dir = f"waning_mixing_infection_csv_infected_{initial_infected_count}"
+    img_dir = f"waning_mixing_infection_images_infected_{initial_infected_count}"
+    
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(img_dir, exist_ok=True)
+    
+    return csv_dir, img_dir
+
+def save_data_to_csv(waning_val, mixing_val, infection_values, ca_results, ode_results, initial_infected_count, csv_dir):
+    """Save comparison data to CSV file."""
+    import csv
+    
+    filename = f"{csv_dir}/waning_{waning_val:.4f}_mixing_{mixing_val:.3f}_infected_{initial_infected_count}.csv"
+    
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        # Header
+        writer.writerow(['infection_prob', 'CA_S_mean', 'CA_I_mean', 'CA_R_mean', 'ODE_S_mean', 'ODE_I_mean', 'ODE_R_mean'])
+        
+        for i, inf_val in enumerate(infection_values):
+            mean_ca, std_ca = ca_results[i]
+            ode_time, mean_ode_states, std_ode_states = ode_results[i]
+            
+            # Take final values for summary
+            ca_S_final = mean_ca['S_frac'][-1]
+            ca_I_final = mean_ca['I_frac'][-1]
+            ca_R_final = mean_ca['R_frac'][-1]
+            ode_S_final = mean_ode_states[-1, 0]
+            ode_I_final = mean_ode_states[-1, 1]
+            ode_R_final = mean_ode_states[-1, 2]
+            
+            writer.writerow([f"{inf_val:.3f}", f"{ca_S_final:.5f}", f"{ca_I_final:.5f}", f"{ca_R_final:.5f}",
+                           f"{ode_S_final:.5f}", f"{ode_I_final:.5f}", f"{ode_R_final:.5f}"])
+    
+    print(f"  Saved data to: {filename}")
+
+# ==========================================================
 # Norm calculation and plotting
 # ==========================================================
 def compute_batch_norms(ca_results, ode_results, infection_values):
@@ -147,7 +188,7 @@ def compute_batch_norms(ca_results, ode_results, infection_values):
     
     return norms_S, norms_I, norms_R, norms_mean
 
-def plot_batch_norms(infection_values, norms_S, norms_I, norms_R, norms_mean, waning_val, mixing_val):
+def plot_batch_norms(infection_values, norms_S, norms_I, norms_R, norms_mean, waning_val, mixing_val, initial_infected_count, img_dir):
     """Plot norms across infection probability parameter."""
     fig, ax = plt.subplots(figsize=(10, 5))
     
@@ -157,17 +198,21 @@ def plot_batch_norms(infection_values, norms_S, norms_I, norms_R, norms_mean, wa
     ax.plot(infection_values, norms_R, '^-', label='L2 norm (R)', linewidth=2, markersize=8, color='green')
     ax.set_xlabel('Infection Probability', fontsize=12)
     ax.set_ylabel('L2 Norm', fontsize=12)
-    ax.set_title(f'Component Norms (Waning={waning_val:.4f}, Mixing={mixing_val:.3f})', fontsize=12)
+    ax.set_title(f'Component Norms (Waning={waning_val:.4f}, Mixing={mixing_val:.3f}, Infected={initial_infected_count})', fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
     
+    # Save figure
+    filename = f"{img_dir}/norms_waning_{waning_val:.4f}_mixing_{mixing_val:.3f}_infected_{initial_infected_count}.png"
     plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    print(f"  Saved norms plot to: {filename}")
     plt.show()
 
 # ==========================================================
 # Plotting with Error Bars
 # ==========================================================
-def plot_comparison_with_error(waning_val, mixing_val, infection_values, ca_results, ode_results, t_max, ode_dt):
+def plot_comparison_with_error(waning_val, mixing_val, infection_values, ca_results, ode_results, t_max, ode_dt, initial_infected_count, img_dir):
     """Plot CA vs ODE for different infection probabilities using 3-row layout (S, I, R)."""
     plt.figure(figsize=(16, 12))
     num_params = len(infection_values)
@@ -220,7 +265,12 @@ def plot_comparison_with_error(waning_val, mixing_val, infection_values, ca_resu
             ax_r.set_yticklabels([])
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.98])
-    plt.suptitle(f"Parameter Sensitivity: infection_prob (Waning={waning_val:.4f}, Mixing={mixing_val:.3f})", fontsize=16, y=0.995)
+    plt.suptitle(f"Parameter Sensitivity: infection_prob (Waning={waning_val:.4f}, Mixing={mixing_val:.3f}, Infected={initial_infected_count})", fontsize=16, y=0.995)
+    
+    # Save figure
+    filename = f"{img_dir}/comparison_waning_{waning_val:.4f}_mixing_{mixing_val:.3f}_infected_{initial_infected_count}.png"
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    print(f"  Saved comparison plot to: {filename}")
     plt.show()
 
 # ==========================================================
@@ -235,6 +285,9 @@ def waning_mixing_infection_sensitivity_experiment():
     print(f"Grid: {params['width']}x{params['height']} ({total_cells} cells)")
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
+    
+    # Create output directories
+    csv_dir, img_dir = ensure_directories(params['initial_infected_count'])
 
     # Loop through paired waning and mixing rates (changing together)
     for waning_val, mixing_val in waning_mixing_pairs:
@@ -303,12 +356,15 @@ def waning_mixing_infection_sensitivity_experiment():
             ca_results.append((mean_ca, std_ca))
             ode_results.append((ode_time, mean_ode_states, std_ode_states))
 
+        # Save data to CSV
+        save_data_to_csv(waning_val, mixing_val, infection_prob_values, ca_results, ode_results, params['initial_infected_count'], csv_dir)
+        
         # Plot results for this waning/mixing combination
-        plot_comparison_with_error(waning_val, mixing_val, infection_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
+        plot_comparison_with_error(waning_val, mixing_val, infection_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'], params['initial_infected_count'], img_dir)
         
         # Compute and plot batch norms
         norms_S, norms_I, norms_R, norms_mean = compute_batch_norms(ca_results, ode_results, infection_prob_values)
-        plot_batch_norms(infection_prob_values, norms_S, norms_I, norms_R, norms_mean, waning_val, mixing_val)
+        plot_batch_norms(infection_prob_values, norms_S, norms_I, norms_R, norms_mean, waning_val, mixing_val, params['initial_infected_count'], img_dir)
 
 # ==========================================================
 # Entry point

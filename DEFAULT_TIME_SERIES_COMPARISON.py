@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import Optional, List
 import pygame
+import os
 from SIRS import Grid
 from SIRS_ODE_SOLVER import solve_sirs_from_ca_params
 
@@ -41,6 +42,17 @@ class TimeSeriesComparison:
 
         self.ode_data: Optional[pd.DataFrame] = None
         self.ode_params: Optional[dict] = None
+
+    def _get_output_paths(self, experiment_name: str = "DEFAULT_TIME_SERIES_COMPARISON"):
+        """Create and return paths for CSV and image folders with experiment name and initial infected count."""
+        csv_folder = f"{experiment_name}_infected_{self.initial_infected_count}_csv"
+        images_folder = f"{experiment_name}_infected_{self.initial_infected_count}_images"
+        
+        # Create folders if they don't exist
+        os.makedirs(csv_folder, exist_ok=True)
+        os.makedirs(images_folder, exist_ok=True)
+        
+        return csv_folder, images_folder
 
     def run_ca_once(self, max_steps: int = 5000) -> pd.DataFrame:
         """Run a single CA simulation headlessly (uses a tiny pygame surface) and return timestep series."""
@@ -79,7 +91,7 @@ class TimeSeriesComparison:
         })
         return df
 
-    def run_multiple_ca_simulations(self, n_runs: int = 15, max_steps: int = 5000):
+    def run_multiple_ca_simulations(self, n_runs: int = 15, max_steps: int = 5000, experiment_name: str = "DEFAULT_TIME_SERIES_COMPARISON"):
         """Run n_runs independent CA simulations and compute average + std per timestep."""
         print(f"Running {n_runs} CA simulations (max_steps={max_steps})...")
         all_runs = []
@@ -102,14 +114,17 @@ class TimeSeriesComparison:
         self.ca_avg = avg
         self.ca_std = std
 
+        # Get output folder paths
+        csv_folder, _ = self._get_output_paths(experiment_name)
+
         # save combined results
-        combined.to_csv('sirs_ca_15runs.csv', index=False)
-        avg.to_csv('sirs_ca_15runs_avg.csv', index=False)
-        std.to_csv('sirs_ca_15runs_std.csv', index=False)
-        print("Saved sirs_ca_15runs.csv, sirs_ca_15runs_avg.csv, sirs_ca_15runs_std.csv")
+        combined.to_csv(os.path.join(csv_folder, 'sirs_ca_runs.csv'), index=False)
+        avg.to_csv(os.path.join(csv_folder, 'sirs_ca_avg.csv'), index=False)
+        std.to_csv(os.path.join(csv_folder, 'sirs_ca_std.csv'), index=False)
+        print(f"Saved CSV files to {csv_folder}/")
         return combined
 
-    def run_ode_solution(self, dt: float = 0.1):
+    def run_ode_solution(self, dt: float = 0.1, experiment_name: str = "DEFAULT_TIME_SERIES_COMPARISON"):
         """Run ODE solver mapped from CA parameters using t_max equal to max CA timestep."""
         if self.ca_runs:
             max_t = max(df['timestep'].max() for df in self.ca_runs)
@@ -138,12 +153,14 @@ class TimeSeriesComparison:
         })
         self.ode_data = ode_df
         self.ode_params = params
+        # Get output folder paths
+        csv_folder, _ = self._get_output_paths(experiment_name)
         # save ode result
-        ode_df.to_csv('sirs_ode_solution.csv', index=False)
-        print("Saved sirs_ode_solution.csv")
+        ode_df.to_csv(os.path.join(csv_folder, 'sirs_ode_solution.csv'), index=False)
+        print(f"Saved ODE solution to {csv_folder}/sirs_ode_solution.csv")
         return ode_df
 
-    def plot_four_panels(self, save_path: Optional[str] = None):
+    def plot_four_panels(self, save_path: Optional[str] = None, experiment_name: str = "DEFAULT_TIME_SERIES_COMPARISON"):
         """Create a 2x2 figure:
            - upper-left: all compartments (CA mean ± std vs ODE curves)
            - upper-right: S comparison (all runs, CA mean, ODE)
@@ -158,6 +175,11 @@ class TimeSeriesComparison:
         avg = self.ca_avg
         std = self.ca_std
         ode = self.ode_data
+        
+        # If no save_path provided, create one in the images folder
+        if save_path is None:
+            _, images_folder = self._get_output_paths(experiment_name)
+            save_path = os.path.join(images_folder, f'{experiment_name}_comparison.png')
 
         fig, axes = plt.subplots(2, 2, figsize=(16, 10))
         ax_all = axes[0, 0]
@@ -240,10 +262,8 @@ class TimeSeriesComparison:
         fig.text(0.5, 0.02, param_text, fontsize=8, family='monospace', ha='center')
 
         plt.tight_layout()
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"Saved figure to {save_path}")
-
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved figure to {save_path}")
         plt.show()
 
     def print_summary(self):
@@ -266,16 +286,17 @@ def main():
     print("SIRS Model: Run 15 CA experiments and compare to ODE")
     print("=" * 70)
 
-    width = 100
-    height = 100
+    width = 20
+    height = 20
     infection_prob = 0.08
     recovery_prob = 0.1
     waning_prob = 0.002
     delta_t = 1.0
     mixing_rate = 0.0
-    initial_infected_count = 10
+    initial_infected_count = 10000
     n_runs = 10
     max_steps = 500
+    experiment_name = "DEFAULT_TIME_SERIES_COMPARISON"
 
     comparison = TimeSeriesComparison(
         width=width,
@@ -288,20 +309,21 @@ def main():
         initial_infected_count=initial_infected_count
     )
 
-    combined = comparison.run_multiple_ca_simulations(n_runs=n_runs, max_steps=max_steps)
+    combined = comparison.run_multiple_ca_simulations(n_runs=n_runs, max_steps=max_steps, experiment_name=experiment_name)
 
-    ode_df = comparison.run_ode_solution(dt=0.1)
+    ode_df = comparison.run_ode_solution(dt=0.1, experiment_name=experiment_name)
 
     comparison.print_summary()
 
-    comparison.plot_four_panels(save_path=f"sirs_{n_runs}runs_comparison.png")
+    comparison.plot_four_panels(experiment_name=experiment_name)
 
+    csv_folder, images_folder = comparison._get_output_paths(experiment_name)
     print("\nAll done. Files saved:")
-    print(" - sirs_ca_15runs.csv")
-    print(" - sirs_ca_15runs_avg.csv")
-    print(" - sirs_ca_15runs_std.csv")
-    print(" - sirs_ode_solution.csv")
-    print(" - sirs_15runs_comparison.png")
+    print(f" - {csv_folder}/sirs_ca_runs.csv")
+    print(f" - {csv_folder}/sirs_ca_avg.csv")
+    print(f" - {csv_folder}/sirs_ca_std.csv")
+    print(f" - {csv_folder}/sirs_ode_solution.csv")
+    print(f" - {images_folder}/{experiment_name}_comparison.png")
 
 
 if __name__ == "__main__":

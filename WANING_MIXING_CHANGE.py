@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import importlib.util
+import csv
+from pathlib import Path
 
 # ==========================================================
 # Dynamic imports of CA and ODE modules
@@ -33,7 +35,7 @@ params = {
     'width'                 : 50,
     'height'                : 50,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 2  # Number of simulations per parameter value
 }
@@ -100,7 +102,7 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
 # ==========================================================
 # Plotting with Error Bars (simplified)
 # ==========================================================
-def plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, t_max):
+def plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, t_max, initial_infected_count, csv_dir, img_dir):
     """Plot CA vs ODE for susceptible, infected, and recovered with error bars."""
     fig, axes = plt.subplots(1, 3, figsize=(16, 4))
 
@@ -145,7 +147,57 @@ def plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, me
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.98])
     plt.suptitle(f"Waning={waning_val:.4f}, Mixing={mixing_val:.3f}, Infection={params['infection_prob']:.3f}", fontsize=14, y=0.995)
+    
+    # Save image
+    img_filename = f"waning_mixing_infected{initial_infected_count}_waning{waning_val:.4f}_mixing{mixing_val:.3f}.png"
+    img_path = os.path.join(img_dir, img_filename)
+    plt.savefig(img_path, dpi=150, bbox_inches='tight')
+    print(f"  Saved image: {img_path}")
+    
     plt.show()
+
+# ==========================================================
+# Helper: save results to CSV
+# ==========================================================
+def save_results_to_csv(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, initial_infected_count, csv_dir):
+    """Save CA and ODE results to CSV files."""
+    csv_filename = f"waning_mixing_infected{initial_infected_count}_waning{waning_val:.4f}_mixing{mixing_val:.3f}.csv"
+    csv_path = os.path.join(csv_dir, csv_filename)
+    
+    with open(csv_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # Write header
+        writer.writerow(['Time', 'CA_S', 'CA_S_std', 'CA_I', 'CA_I_std', 'CA_R', 'CA_R_std', 
+                        'ODE_S', 'ODE_S_std', 'ODE_I', 'ODE_I_std', 'ODE_R', 'ODE_R_std'])
+        
+        # Determine max length (CA and ODE may have different time steps)
+        ca_len = len(mean_ca['timestep'])
+        ode_len = len(ode_time)
+        max_len = max(ca_len, ode_len)
+        
+        # Write data rows
+        for i in range(max_len):
+            ca_time = mean_ca['timestep'][i] if i < ca_len else ''
+            ca_s = mean_ca['S_frac'][i] if i < ca_len else ''
+            ca_s_std = std_ca['S_frac'][i] if i < ca_len else ''
+            ca_i = mean_ca['I_frac'][i] if i < ca_len else ''
+            ca_i_std = std_ca['I_frac'][i] if i < ca_len else ''
+            ca_r = mean_ca['R_frac'][i] if i < ca_len else ''
+            ca_r_std = std_ca['R_frac'][i] if i < ca_len else ''
+            
+            ode_t = ode_time[i] if i < ode_len else ''
+            ode_s = mean_ode_states[i, 0] if i < ode_len else ''
+            ode_s_std = std_ode_states[i, 0] if i < ode_len else ''
+            ode_i = mean_ode_states[i, 1] if i < ode_len else ''
+            ode_i_std = std_ode_states[i, 1] if i < ode_len else ''
+            ode_r = mean_ode_states[i, 2] if i < ode_len else ''
+            ode_r_std = std_ode_states[i, 2] if i < ode_len else ''
+            
+            writer.writerow([ca_time, ca_s, ca_s_std, ca_i, ca_i_std, ca_r, ca_r_std,
+                           ode_t, ode_s, ode_s_std, ode_i, ode_i_std, ode_r, ode_r_std])
+    
+    print(f"  Saved CSV: {csv_path}")
 
 # ==========================================================
 # Main experiment
@@ -159,6 +211,17 @@ def waning_mixing_infection_sensitivity_experiment():
     print(f"Grid: {params['width']}x{params['height']} ({total_cells} cells)")
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
+
+    # Create output directories
+    base_dir = os.path.dirname(__file__)
+    csv_dir = os.path.join(base_dir, f"waning_mixing_csv_infected{params['initial_infected_count']}")
+    img_dir = os.path.join(base_dir, f"waning_mixing_images_infected{params['initial_infected_count']}")
+    
+    Path(csv_dir).mkdir(parents=True, exist_ok=True)
+    Path(img_dir).mkdir(parents=True, exist_ok=True)
+    
+    print(f"CSV output directory: {csv_dir}")
+    print(f"Image output directory: {img_dir}\n")
 
     # Loop through paired waning and mixing rates (changing together)
     for waning_val, mixing_val in waning_mixing_pairs:
@@ -219,8 +282,11 @@ def waning_mixing_infection_sensitivity_experiment():
 
         print(f"  Completed for waning={waning_val:.4f}, mixing={mixing_val:.3f}")
 
-        # Plot comparison with error bars
-        plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, params['t_max'])
+        # Save CSV data
+        save_results_to_csv(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, params['initial_infected_count'], csv_dir)
+
+        # Plot comparison with error bars and save image
+        plot_ca_ode_comparison(waning_val, mixing_val, mean_ca, std_ca, ode_time, mean_ode_states, std_ode_states, params['t_max'], params['initial_infected_count'], csv_dir, img_dir)
 
 
 

@@ -33,7 +33,7 @@ params = {
     'width'                 : 50,
     'height'                : 50,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 1  # Number of simulations per parameter value
 }
@@ -53,6 +53,60 @@ def compute_initial_infected_fraction(width, height, initial_infected_count):
     """Compute the true fraction of infected population for ODE."""
     total_cells = width * height
     return initial_infected_count / total_cells
+
+# ==========================================================
+# Helper: Create output directories
+# ==========================================================
+def setup_output_directories(initial_infected_count):
+    """Create CSV and image directories with initial infected count in the name."""
+    csv_dir = f"waning_mixing_recovery_csv_infected_{initial_infected_count}"
+    img_dir = f"waning_mixing_recovery_images_infected_{initial_infected_count}"
+    
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(img_dir, exist_ok=True)
+    
+    return csv_dir, img_dir
+
+def save_results_to_csv(csv_dir, waning_val, mixing_val, recovery_values, ca_results, ode_results):
+    """Save CA and ODE results to CSV files."""
+    import csv
+    
+    for i, rec_val in enumerate(recovery_values):
+        mean_ca, std_ca = ca_results[i]
+        ode_time, mean_ode_states, std_ode_states = ode_results[i]
+        
+        # Create filename with parameters
+        filename = f"waning_{waning_val:.4f}_mixing_{mixing_val:.3f}_recovery_{rec_val:.3f}.csv"
+        filepath = os.path.join(csv_dir, filename)
+        
+        # Interpolate CA to ODE time grid for consistent comparison
+        ca_times = np.array(mean_ca['timestep'])
+        ca_S = np.array(mean_ca['S_frac'])
+        ca_I = np.array(mean_ca['I_frac'])
+        ca_R = np.array(mean_ca['R_frac'])
+        
+        ca_S_interp = np.interp(ode_time, ca_times, ca_S)
+        ca_I_interp = np.interp(ode_time, ca_times, ca_I)
+        ca_R_interp = np.interp(ode_time, ca_times, ca_R)
+        
+        # Write to CSV
+        with open(filepath, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['time', 'CA_S', 'CA_I', 'CA_R', 'ODE_S', 'ODE_I', 'ODE_R', 
+                            'std_CA_S', 'std_CA_I', 'std_CA_R', 'std_ODE_S', 'std_ODE_I', 'std_ODE_R'])
+            
+            for j, t in enumerate(ode_time):
+                writer.writerow([
+                    t,
+                    ca_S_interp[j], ca_I_interp[j], ca_R_interp[j],
+                    mean_ode_states[j, 0], mean_ode_states[j, 1], mean_ode_states[j, 2],
+                    std_ca['S_frac'][j] if j < len(std_ca['S_frac']) else 0,
+                    std_ca['I_frac'][j] if j < len(std_ca['I_frac']) else 0,
+                    std_ca['R_frac'][j] if j < len(std_ca['R_frac']) else 0,
+                    std_ode_states[j, 0], std_ode_states[j, 1], std_ode_states[j, 2]
+                ])
+        
+        print(f"    Saved: {filename}")
 
 # ==========================================================
 # Simulation runners
@@ -103,7 +157,7 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
 # ==========================================================
 # Plotting with Error Bars
 # ==========================================================
-def plot_comparison_with_error(waning_val, mixing_val, recovery_values, ca_results, ode_results, t_max, ode_dt):
+def plot_comparison_with_error(waning_val, mixing_val, recovery_values, ca_results, ode_results, t_max, ode_dt, img_dir=None):
     """Plot CA vs ODE for different recovery probabilities using 3-row layout (S, I, R)."""
     plt.figure(figsize=(16, 12))
     num_params = len(recovery_values)
@@ -157,6 +211,14 @@ def plot_comparison_with_error(waning_val, mixing_val, recovery_values, ca_resul
 
     plt.tight_layout(rect=[0, 0.02, 1, 0.98])
     plt.suptitle(f"Parameter Sensitivity: recovery_prob (Waning={waning_val:.4f}, Mixing={mixing_val:.3f})", fontsize=16, y=0.995)
+    
+    # Save image if directory provided
+    if img_dir:
+        img_filename = f"comparison_waning_{waning_val:.4f}_mixing_{mixing_val:.3f}.png"
+        img_filepath = os.path.join(img_dir, img_filename)
+        plt.savefig(img_filepath, dpi=300, bbox_inches='tight')
+        print(f"    Saved image: {img_filename}")
+    
     plt.show()
 
 # ==========================================================
@@ -197,7 +259,7 @@ def compute_batch_norms(ca_results, ode_results, recovery_values):
     
     return norms_S, norms_I, norms_R
 
-def plot_batch_norms(recovery_values, norms_S, norms_I, norms_R, waning_val, mixing_val):
+def plot_batch_norms(recovery_values, norms_S, norms_I, norms_R, waning_val, mixing_val, img_dir=None):
     """Plot component norms across recovery probability parameter."""
     fig, ax = plt.subplots(figsize=(10, 6))
     
@@ -211,6 +273,14 @@ def plot_batch_norms(recovery_values, norms_S, norms_I, norms_R, waning_val, mix
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
+    
+    # Save image if directory provided
+    if img_dir:
+        img_filename = f"norms_waning_{waning_val:.4f}_mixing_{mixing_val:.3f}.png"
+        img_filepath = os.path.join(img_dir, img_filename)
+        plt.savefig(img_filepath, dpi=300, bbox_inches='tight')
+        print(f"    Saved image: {img_filename}")
+    
     plt.show()
 
 # ==========================================================
@@ -225,6 +295,12 @@ def waning_mixing_recovery_sensitivity_experiment():
     print(f"Grid: {params['width']}x{params['height']} ({total_cells} cells)")
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
+    
+    # Setup output directories
+    csv_dir, img_dir = setup_output_directories(params['initial_infected_count'])
+    print(f"Output directories created:")
+    print(f"  CSV: {csv_dir}")
+    print(f"  Images: {img_dir}\n")
 
     # Loop through paired waning and mixing rates (changing together)
     for waning_val, mixing_val in waning_mixing_pairs:
@@ -293,12 +369,16 @@ def waning_mixing_recovery_sensitivity_experiment():
             ca_results.append((mean_ca, std_ca))
             ode_results.append((ode_time, mean_ode_states, std_ode_states))
 
+        # Save results to CSV
+        print(f"\n  Saving CSV files...")
+        save_results_to_csv(csv_dir, waning_val, mixing_val, recovery_prob_values, ca_results, ode_results)
+        
         # Plot results for this waning/mixing combination
-        plot_comparison_with_error(waning_val, mixing_val, recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'])
+        plot_comparison_with_error(waning_val, mixing_val, recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'], img_dir)
         
         # Compute and plot batch norms
         norms_S, norms_I, norms_R = compute_batch_norms(ca_results, ode_results, recovery_prob_values)
-        plot_batch_norms(recovery_prob_values, norms_S, norms_I, norms_R, waning_val, mixing_val)
+        plot_batch_norms(recovery_prob_values, norms_S, norms_I, norms_R, waning_val, mixing_val, img_dir)
 
 # ==========================================================
 # Entry point

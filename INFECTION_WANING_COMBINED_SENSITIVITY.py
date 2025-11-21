@@ -22,6 +22,19 @@ from scipy.interpolate import interp1d
 ca_path     = os.path.join(os.path.dirname(__file__), "SIRS.py")
 ode_path    = os.path.join(os.path.dirname(__file__), "SIRS_ODE_SOLVER.py")
 
+# ==========================================================
+# Output directories
+# ==========================================================
+def setup_output_directories(initial_infected_count):
+    """Create CSV and images directories based on initial infected count."""
+    csv_dir = f'infection_waning_combined_sensitivity_csv_infected_{initial_infected_count}'
+    images_dir = f'infection_waning_combined_sensitivity_images_infected_{initial_infected_count}'
+    
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(images_dir, exist_ok=True)
+    
+    return csv_dir, images_dir
+
 def import_module_from_path(module_name, file_path):
     spec    = importlib.util.spec_from_file_location(module_name, file_path)
     module  = importlib.util.module_from_spec(spec)
@@ -42,9 +55,9 @@ params = {
     'dt'                    : 1.0,
     'ode_dt'                : 0.1,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
-    'width'                 : 20,
-    'height'                : 20,
+    'initial_infected_count': 100,
+    'width'                 : 10,
+    'height'                : 10,
     'mixing_rate'           : 0.0,  # No mixing
     'num_simulations'       : 1
 }
@@ -135,7 +148,7 @@ def calculate_norm(ca_history, ode_time, ode_states):
 # ==========================================================
 # Heatmap plots
 # ==========================================================
-def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_labels):
+def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_labels, images_dir):
     """
     Plot heatmaps for L2 norms of S, I, R across infection_prob and waning_prob.
     Creates 3 separate figures, one for each state (S, I, R).
@@ -158,8 +171,9 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_label
     ax.set_xlabel('Waning Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_S_infection_waning_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for S saved to 'heatmap_S_infection_waning_combined.png'")
+    heatmap_path = os.path.join(images_dir, 'heatmap_S_infection_waning_combined.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for S saved to '{heatmap_path}'")
     plt.close()
     
     # Plot heatmap for I
@@ -171,8 +185,9 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_label
     ax.set_xlabel('Waning Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_I_infection_waning_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for I saved to 'heatmap_I_infection_waning_combined.png'")
+    heatmap_path = os.path.join(images_dir, 'heatmap_I_infection_waning_combined.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for I saved to '{heatmap_path}'")
     plt.close()
     
     # Plot heatmap for R
@@ -184,21 +199,23 @@ def plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_label
     ax.set_xlabel('Waning Probability', fontsize=12)
     ax.set_ylabel('Infection Probability', fontsize=12)
     plt.tight_layout()
-    plt.savefig('heatmap_R_infection_waning_combined.png', dpi=300, bbox_inches='tight')
-    print("Heatmap for R saved to 'heatmap_R_infection_waning_combined.png'")
+    heatmap_path = os.path.join(images_dir, 'heatmap_R_infection_waning_combined.png')
+    plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
+    print(f"Heatmap for R saved to '{heatmap_path}'")
     plt.close()
 
 # ==========================================================
 # Helper plotting functions for intermediate results
 # ==========================================================
-def _save_timeseries_to_csv(waning_results, infection_prob, waning_probs, experiment_name):
+def _save_timeseries_to_csv(waning_results, infection_prob, waning_probs, experiment_name, csv_dir):
     """Save time series data with mean and std deviation to CSV files."""
     for waning_idx, waning_prob in enumerate(waning_probs):
         ca_histories, ode_time, ode_states_mean = waning_results[waning_idx]
         
         filename = f'{experiment_name}_infection_{infection_prob:.4f}_waning_{waning_prob:.6f}.csv'
+        filepath = os.path.join(csv_dir, filename)
         
-        with open(filename, 'w', newline='') as f:
+        with open(filepath, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['time', 'CA_S_mean', 'CA_S_std', 'CA_I_mean', 'CA_I_std', 'CA_R_mean', 'CA_R_std', 
                            'ODE_S', 'ODE_I', 'ODE_R'])
@@ -233,7 +250,7 @@ def _save_timeseries_to_csv(waning_results, infection_prob, waning_probs, experi
 # ==========================================================
 # Helper plotting functions for intermediate results
 # ==========================================================
-def _plot_partial_heatmaps(norms_S, norms_I, norms_R, infection_labels_partial, waning_labels, param_idx, total_params):
+def _plot_partial_heatmaps(norms_S, norms_I, norms_R, infection_labels_partial, waning_labels, param_idx, total_params, images_dir):
     """Plot partial heatmaps with data collected so far."""
     fig, axes = plt.subplots(1, 3, figsize=(16, 4))
     
@@ -267,11 +284,12 @@ def _plot_partial_heatmaps(norms_S, norms_I, norms_R, infection_labels_partial, 
     axes[2].set_ylabel('Infection Probability', fontsize=11)
     
     plt.tight_layout()
-    plt.savefig(f'heatmaps_partial_infection{param_idx+1}of{total_params}.png', dpi=150, bbox_inches='tight')
+    heatmap_path = os.path.join(images_dir, f'heatmaps_partial_infection{param_idx+1}of{total_params}.png')
+    plt.savefig(heatmap_path, dpi=150, bbox_inches='tight')
     print(f"  → Partial heatmap saved")
     plt.close()
 
-def _plot_timeseries_for_infection(waning_results, infection_prob, waning_probs, experiment_name):
+def _plot_timeseries_for_infection(waning_results, infection_prob, waning_probs, experiment_name, images_dir, csv_dir):
     """
     Plot time series for all waning_prob values of a given infection_prob.
     Organization: 3 rows (S, I, R states) × 5 columns (waning_prob values per batch)
@@ -360,18 +378,22 @@ def _plot_timeseries_for_infection(waning_results, infection_prob, waning_probs,
         else:
             plot_filename = f'{experiment_name}_infection_{infection_prob:.4f}.png'
         
+        plot_path = os.path.join(images_dir, plot_filename)
         plt.tight_layout()
-        plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
-        print(f"  → Time series plot saved: {plot_filename}")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        print(f"  → Time series plot saved: {plot_path}")
         plt.close()
     
     # Save CSV data
-    _save_timeseries_to_csv(waning_results, infection_prob, waning_probs, experiment_name)
+    _save_timeseries_to_csv(waning_results, infection_prob, waning_probs, experiment_name, csv_dir)
 
 # ==========================================================
 # Main experiment
 # ==========================================================
 def infection_waning_combined_sensitivity_experiment():
+    # Setup output directories
+    csv_dir, images_dir = setup_output_directories(params['initial_infected_count'])
+    
     print("="*70)
     print("Infection Probability + Waning Probability Combined Sensitivity Analysis")
     print("="*70)
@@ -380,6 +402,10 @@ def infection_waning_combined_sensitivity_experiment():
     print(f"Simulations per combination: {params['num_simulations']}")
     print(f"Mixing Rate: {params['mixing_rate']} (fixed)")
     print(f"Recovery Probability: {params['recovery_prob']} (fixed)")
+    print(f"Initial Infected Count: {params['initial_infected_count']}")
+    print(f"Output directories:")
+    print(f"  CSV: {csv_dir}")
+    print(f"  Images: {images_dir}")
     print()
     
     # Store results: results[infection_idx][waning_idx] = (ca_history, ode_time, ode_states)
@@ -477,7 +503,7 @@ def infection_waning_combined_sensitivity_experiment():
         
         # Plot time series for this infection probability and save CSV data
         _plot_timeseries_for_infection(waning_results, infection_prob, waning_prob_values,
-                                       'INFECTION_WANING_COMBINED_SENSITIVITY')
+                                       'INFECTION_WANING_COMBINED_SENSITIVITY', images_dir, csv_dir)
         
         print(f"Plots and data saved for infection prob {infection_prob:.4f}\n")
     
@@ -488,7 +514,7 @@ def infection_waning_combined_sensitivity_experiment():
     # Plot final complete heatmaps
     print("\n" + "="*70)
     print("Generating final complete heatmaps...")
-    plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_labels)
+    plot_norm_heatmaps(norms_S, norms_I, norms_R, infection_labels, waning_labels, images_dir)
     
     print("\n" + "="*70)
     print("✓ Analysis complete!")

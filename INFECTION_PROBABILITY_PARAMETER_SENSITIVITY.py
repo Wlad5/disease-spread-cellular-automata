@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import importlib.util
+import pandas as pd
 from scipy.interpolate import interp1d
 
 # ==========================================================
@@ -34,13 +35,13 @@ params = {
     'width'                 : 20,
     'height'                : 20,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 1000,
     'mixing_rate'           : 0.00,
-    'num_simulations'       : 2  # Number of simulations per parameter value
+    'num_simulations'       : 1  # Number of simulations per parameter value
 }
 
 # Parameter range for infection probability sensitivity analysis
-infection_prob_values = np.linspace(0.0, 1, 21)  # More frequent values
+infection_prob_values = np.linspace(0.0, 1, 10)  # More frequent values
 plots_per_figure = 5  # Show 5 plots per figure
 
 # ==========================================================
@@ -50,6 +51,19 @@ def compute_initial_infected_fraction(width, height, initial_infected_count):
     """Compute the true fraction of infected population for ODE."""
     total_cells = width * height
     return initial_infected_count / total_cells
+
+# ==========================================================
+# Folder management
+# ==========================================================
+def create_output_folders(initial_infected_count):
+    """Create output folders for CSV and images with initial infected count in name."""
+    base_csv_folder = f"infection_prob_sensitivity_initial_infected_{initial_infected_count}_csv"
+    base_image_folder = f"infection_prob_sensitivity_initial_infected_{initial_infected_count}_images"
+    
+    os.makedirs(base_csv_folder, exist_ok=True)
+    os.makedirs(base_image_folder, exist_ok=True)
+    
+    return base_csv_folder, base_image_folder
 
 # ==========================================================
 # Simulation runners
@@ -100,7 +114,7 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
 # ==========================================================
 # Updated Plotting with Error Bars (in batches)
 # ==========================================================
-def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt, plots_per_figure=5):
+def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt, image_folder, plots_per_figure=5):
     num_params = len(param_values)
     num_figures = int(np.ceil(num_params / plots_per_figure))
     
@@ -161,6 +175,12 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.suptitle(f"Parameter Sensitivity: {param_name} (Batch {fig_idx + 1}/{num_figures})", fontsize=16, y=0.98)
         plt.subplots_adjust(hspace=0.35, wspace=0.15)
+        
+        # Save the figure
+        image_path = os.path.join(image_folder, f"comparison_batch_{fig_idx + 1}.png")
+        plt.savefig(image_path, dpi=300, bbox_inches='tight')
+        print(f"Saved figure: {image_path}")
+        
         plt.show()
 
 # ==========================================================
@@ -190,7 +210,7 @@ def calculate_norm(ca_results, ode_results):
 
     return norms
 
-def plot_norm_vs_parameter(param_name, param_values, norms):
+def plot_norm_vs_parameter(param_name, param_values, norms, image_folder):
     plt.figure(figsize=(10, 6))
     plt.plot(param_values, norms['S'], marker='o', linestyle='-', label='Norm (S)', color='b')
     plt.plot(param_values, norms['I'], marker='o', linestyle='-', label='Norm (I)', color='r')
@@ -200,7 +220,52 @@ def plot_norm_vs_parameter(param_name, param_values, norms):
     plt.title(f'Norms for S, I, R vs {param_name}')
     plt.legend()
     plt.grid(True)
+    
+    # Save the figure
+    image_path = os.path.join(image_folder, "norm_vs_parameter.png")
+    plt.savefig(image_path, dpi=300, bbox_inches='tight')
+    print(f"Saved figure: {image_path}")
+    
     plt.show()
+
+# ==========================================================
+# Data export
+# ==========================================================
+def save_data_to_csv(param_name, param_values, ca_results, ode_results, csv_folder):
+    """Save CA and ODE results to CSV files."""
+    for i, val in enumerate(param_values):
+        mean_ca, std_ca = ca_results[i]
+        ode_time, mean_ode_states, std_ode_states = ode_results[i]
+        
+        # Create CA data dictionary
+        ca_data = {
+            'time': mean_ca['timestep'],
+            'S_mean': mean_ca['S_frac'],
+            'S_std': std_ca['S_frac'],
+            'I_mean': mean_ca['I_frac'],
+            'I_std': std_ca['I_frac'],
+            'R_mean': mean_ca['R_frac'],
+            'R_std': std_ca['R_frac']
+        }
+        ca_df = pd.DataFrame(ca_data)
+        ca_csv_path = os.path.join(csv_folder, f"ca_{param_name}_{val:.4f}.csv")
+        ca_df.to_csv(ca_csv_path, index=False)
+        
+        # Create ODE data dictionary
+        ode_data = {
+            'time': ode_time,
+            'S_mean': mean_ode_states[:, 0],
+            'S_std': std_ode_states[:, 0],
+            'I_mean': mean_ode_states[:, 1],
+            'I_std': std_ode_states[:, 1],
+            'R_mean': mean_ode_states[:, 2],
+            'R_std': std_ode_states[:, 2]
+        }
+        ode_df = pd.DataFrame(ode_data)
+        ode_csv_path = os.path.join(csv_folder, f"ode_{param_name}_{val:.4f}.csv")
+        ode_df.to_csv(ode_csv_path, index=False)
+        
+        print(f"Saved CSV files for {param_name}={val:.4f}")
 
 # ==========================================================
 # Main experiment
@@ -213,6 +278,10 @@ def infection_prob_sensitivity_experiment():
     print(f"Grid: {params['width']}x{params['height']} ({total_cells} cells)")
     print(f"Initial infected count: {params['initial_infected_count']}")
     print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
+
+    # Create output folders
+    csv_folder, image_folder = create_output_folders(params['initial_infected_count'])
+    print(f"Output folders created: {csv_folder}, {image_folder}\n")
 
     print(f"Running sensitivity for infection_prob...")
     ca_results = []
@@ -274,11 +343,15 @@ def infection_prob_sensitivity_experiment():
         ode_results.append((ode_time, mean_ode_states, std_ode_states))
 
     # Update the plotting function to handle mean ± std
-    plot_comparison_with_error("infection_prob", infection_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'], plots_per_figure=5)
+    plot_comparison_with_error("infection_prob", infection_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'], image_folder, plots_per_figure=5)
 
     # Calculate norms and plot norm vs parameter
     norms = calculate_norm(ca_results, ode_results)
-    plot_norm_vs_parameter("infection_prob", infection_prob_values, norms)
+    plot_norm_vs_parameter("infection_prob", infection_prob_values, norms, image_folder)
+    
+    # Save all data to CSV
+    save_data_to_csv("infection_prob", infection_prob_values, ca_results, ode_results, csv_folder)
+    print(f"\nAll data saved successfully to {csv_folder} and {image_folder}")
 
 # ==========================================================
 # Entry point

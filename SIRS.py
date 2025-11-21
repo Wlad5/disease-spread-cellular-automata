@@ -195,14 +195,14 @@ class Simulation:
 
 if __name__ == "__main__":
     sim = Simulation(
-        width=100, 
-        height=100, 
-        cell_size=6, 
+        width=50, 
+        height=50, 
+        cell_size=8, 
         infection_prob=0.08,
         recovery_prob=0.1,     
         waning_prob=0.002,      
         delta_t=1,
-        mixing_rate=0.00
+        mixing_rate=1.00
     )
     sim.run()
     

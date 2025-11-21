@@ -31,15 +31,14 @@ SIRS_ODE = import_module_from_path("SIRS_ODE", ode_path)
 # ==========================================================
 # Directory setup
 # ==========================================================
-def setup_directories(base_name):
+def setup_directories(base_name, initial_infected_count):
     """Create output directories for CSV and images"""
-    csv_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_csv")
-    img_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_images")
+    dir_name = f"{base_name}_infected_{initial_infected_count}"
+    csv_dir = os.path.join(os.path.dirname(__file__), f"{dir_name}_csv")
+    img_dir = os.path.join(os.path.dirname(__file__), f"{dir_name}_images")
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(img_dir, exist_ok=True)
     return csv_dir, img_dir
-
-csv_dir, img_dir = setup_directories("infection_waning_recovery")
 
 # ==========================================================
 # Default parameters
@@ -53,10 +52,10 @@ params = {
     't_max'                 : 500,
     'dt'                    : 1.0,
     'ode_dt'                : 0.1,
-    'width'                 : 100,
-    'height'                : 100,
+    'width'                 : 10,
+    'height'                : 10,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 1
 }
@@ -303,6 +302,9 @@ def save_norms_to_csv(recovery_values, norms_by_pair, infection_waning_pairs):
 # Main experiment
 # ==========================================================
 def sensitivity_experiment():
+    global csv_dir, img_dir
+    csv_dir, img_dir = setup_directories("infection_waning_recovery", params['initial_infected_count'])
+    
     total_cells = params['width'] * params['height']
     base_frac = compute_initial_infected_fraction(
         params['width'], params['height'], params['initial_infected_count']

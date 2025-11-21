@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import importlib.util
+import csv
 from scipy.interpolate import interp1d
 
 # ==========================================================
@@ -28,20 +29,33 @@ params = {
     'waning_prob'           : 0.002,
     'k'                     : 8,
     'delta_t'               : 1.0,
-    't_max'                 : 500,
+    't_max'                 : 100,
     'dt'                    : 1.0,
     'ode_dt'                : 0.1,
-    'width'                 : 20,
-    'height'                : 20,
+    'width'                 : 100,
+    'height'                : 100,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
     'mixing_rate'           : 0.00,
-    'num_simulations'       : 1  # Number of simulations per parameter value
+    'num_simulations'       : 5
 }
 
-# Parameter range for recovery probability sensitivity analysis
-recovery_prob_values = np.linspace(0.0, 1, 50)  # More frequent values
-plots_per_figure = 5  # Show 5 plots per figure
+# Parameter range for initial infected count sensitivity analysis
+initial_infected_counts = np.array([5, 20, 50, 100])
+initial_infected_counts = np.array([20, 50, 100, 200, 500, 1000, 2000, 5000, 7000, 10000])
+plots_per_figure = 5  # Show 4 plots per figure
+
+# ==========================================================
+# Create output directories
+# ==========================================================
+def create_output_directories():
+    """Create directories for saving CSV files and images."""
+    csv_dir = os.path.join(os.path.dirname(__file__), "initial_infected_count_csv")
+    img_dir = os.path.join(os.path.dirname(__file__), "initial_infected_count_images")
+    
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(img_dir, exist_ok=True)
+    
+    return csv_dir, img_dir
 
 # ==========================================================
 # Helper: compute initial infected fraction dynamically
@@ -55,7 +69,7 @@ def compute_initial_infected_fraction(width, height, initial_infected_count):
 # Simulation runners
 # ==========================================================
 def run_ca_simulation(infection_prob, recovery_prob, waning_prob, t_max,
-                      width, height, cell_size, initial_infected_count, mixing_rate=0.05):
+                      width, height, cell_size, initial_infected_count, mixing_rate=0.00):
     """Run CA simulation and return history + initial infected fraction."""
     sim = SIRS_CA.Simulation(
         width=width,
@@ -68,18 +82,28 @@ def run_ca_simulation(infection_prob, recovery_prob, waning_prob, t_max,
         mixing_rate=mixing_rate
     )
 
-    # Infect a given number of random cells
+    # Clear any default infections and infect the specified number of random cells
+    for y in range(height):
+        for x in range(width):
+            sim.grid.grid[y][x].state = SIRS_CA.SUSCEPTIBLE
     sim.grid.infect_random(n=initial_infected_count)
 
     # Compute actual initial infected fraction (used by ODE)
     initial_infected_frac = compute_initial_infected_fraction(width, height, initial_infected_count)
 
-    # Run CA simulation steps (without GUI)
-    sim.running = False
-    for _ in range(t_max):
+    # Run CA simulation steps (with visual display)
+    import pygame
+    for step in range(t_max):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                import sys
+                sys.exit()
         sim.grid.update()
+        sim.draw()
+        sim.clock.tick(60)
 
     history = sim.get_history()
+    pygame.quit()
     return history, initial_infected_frac
 
 def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
@@ -98,14 +122,53 @@ def run_ode_simulation(infection_prob, recovery_prob, waning_prob, k, delta_t,
     return time_points, states
 
 # ==========================================================
-# Updated Plotting with Error Bars (in batches)
+# CSV saving functions
 # ==========================================================
-def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt, plots_per_figure=5):
+def save_ca_results_to_csv(csv_dir, initial_infected_count, mean_ca, std_ca):
+    """Save CA results to CSV file."""
+    filename = os.path.join(csv_dir, f"ca_initial_infected_{initial_infected_count}.csv")
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['timestep', 'S_frac_mean', 'S_frac_std', 'I_frac_mean', 'I_frac_std', 'R_frac_mean', 'R_frac_std'])
+        for i in range(len(mean_ca['timestep'])):
+            writer.writerow([
+                mean_ca['timestep'][i],
+                mean_ca['S_frac'][i],
+                std_ca['S_frac'][i],
+                mean_ca['I_frac'][i],
+                std_ca['I_frac'][i],
+                mean_ca['R_frac'][i],
+                std_ca['R_frac'][i]
+            ])
+    print(f"  Saved CA results to {filename}")
+
+def save_ode_results_to_csv(csv_dir, initial_infected_count, ode_time, mean_ode_states, std_ode_states):
+    """Save ODE results to CSV file."""
+    filename = os.path.join(csv_dir, f"ode_initial_infected_{initial_infected_count}.csv")
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['time', 'S_mean', 'S_std', 'I_mean', 'I_std', 'R_mean', 'R_std'])
+        for i in range(len(ode_time)):
+            writer.writerow([
+                ode_time[i],
+                mean_ode_states[i, 0],
+                std_ode_states[i, 0],
+                mean_ode_states[i, 1],
+                std_ode_states[i, 1],
+                mean_ode_states[i, 2],
+                std_ode_states[i, 2]
+            ])
+    print(f"  Saved ODE results to {filename}")
+
+# ==========================================================
+# Plotting with Error Bars (in batches)
+# ==========================================================
+def plot_comparison_with_error(param_name, param_values, ca_results, ode_results, t_max, ode_dt, img_dir, plots_per_figure=4):
     num_params = len(param_values)
     num_figures = int(np.ceil(num_params / plots_per_figure))
     
     for fig_idx in range(num_figures):
-        plt.figure(figsize=(16, 12))
+        plt.figure(figsize=(18, 14))
         start_idx = fig_idx * plots_per_figure
         end_idx = min(start_idx + plots_per_figure, num_params)
         batch_size = end_idx - start_idx
@@ -121,9 +184,10 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
             ax_s.fill_between(mean_ca['timestep'], mean_ca['S_frac'] - std_ca['S_frac'], mean_ca['S_frac'] + std_ca['S_frac'], color='b', alpha=0.2)
             ax_s.plot(ode_time, mean_ode_states[:, 0], label='ODE S', color='b', linewidth=2)
             ax_s.fill_between(ode_time, mean_ode_states[:, 0] - std_ode_states[:, 0], mean_ode_states[:, 0] + std_ode_states[:, 0], color='b', alpha=0.1)
-            ax_s.set_title(f"S: {param_name}={val:.3f}", fontsize=11)
-            ax_s.set_ylabel('Fraction')
+            ax_s.set_title(f"S (Susceptible): {param_name}={int(val)}", fontsize=11, fontweight='bold')
+            ax_s.set_ylabel('Fraction', fontsize=10)
             ax_s.set_ylim(0, 1)
+            ax_s.grid(True, alpha=0.3)
             if batch_pos == 0:
                 ax_s.legend(loc='best', fontsize=9)
             if batch_pos > 0:
@@ -135,9 +199,10 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
             ax_i.fill_between(mean_ca['timestep'], mean_ca['I_frac'] - std_ca['I_frac'], mean_ca['I_frac'] + std_ca['I_frac'], color='r', alpha=0.2)
             ax_i.plot(ode_time, mean_ode_states[:, 1], label='ODE I', color='r', linewidth=2)
             ax_i.fill_between(ode_time, mean_ode_states[:, 1] - std_ode_states[:, 1], mean_ode_states[:, 1] + std_ode_states[:, 1], color='r', alpha=0.1)
-            ax_i.set_title(f"I: {param_name}={val:.3f}", fontsize=11)
-            ax_i.set_ylabel('Fraction')
+            ax_i.set_title(f"I (Infected): {param_name}={int(val)}", fontsize=11, fontweight='bold')
+            ax_i.set_ylabel('Fraction', fontsize=10)
             ax_i.set_ylim(0, 1)
+            ax_i.grid(True, alpha=0.3)
             if batch_pos == 0:
                 ax_i.legend(loc='best', fontsize=9)
             if batch_pos > 0:
@@ -149,40 +214,54 @@ def plot_comparison_with_error(param_name, param_values, ca_results, ode_results
             ax_r.fill_between(mean_ca['timestep'], mean_ca['R_frac'] - std_ca['R_frac'], mean_ca['R_frac'] + std_ca['R_frac'], color='g', alpha=0.2)
             ax_r.plot(ode_time, mean_ode_states[:, 2], label='ODE R', color='g', linewidth=2)
             ax_r.fill_between(ode_time, mean_ode_states[:, 2] - std_ode_states[:, 2], mean_ode_states[:, 2] + std_ode_states[:, 2], color='g', alpha=0.1)
-            ax_r.set_title(f"R: {param_name}={val:.3f}", fontsize=11)
-            ax_r.set_xlabel('Time')
-            ax_r.set_ylabel('Fraction')
+            ax_r.set_title(f"R (Recovered): {param_name}={int(val)}", fontsize=11, fontweight='bold')
+            ax_r.set_xlabel('Time', fontsize=10)
+            ax_r.set_ylabel('Fraction', fontsize=10)
             ax_r.set_ylim(0, 1)
+            ax_r.grid(True, alpha=0.3)
             if batch_pos == 0:
                 ax_r.legend(loc='best', fontsize=9)
             if batch_pos > 0:
                 ax_r.set_yticklabels([])
 
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.suptitle(f"Parameter Sensitivity: {param_name} (Batch {fig_idx + 1}/{num_figures})", fontsize=16, y=0.98)
+        plt.suptitle(f"Initial Infected Count Sensitivity (Batch {fig_idx + 1}/{num_figures})", fontsize=16, fontweight='bold', y=0.98)
         plt.subplots_adjust(hspace=0.35, wspace=0.15)
-        plt.show()
+        
+        # Save figure
+        fig_filename = os.path.join(img_dir, f"initial_infected_sensitivity_batch_{fig_idx + 1}.png")
+        plt.savefig(fig_filename, dpi=300, bbox_inches='tight')
+        print(f"  Saved figure to {fig_filename}")
+        plt.close()
 
 # ==========================================================
-# Norm Calculation and Plotting
+# Norm Calculation
 # ==========================================================
 def calculate_norm(ca_results, ode_results):
+    """Calculate L2 norms between CA and ODE results."""
     norms = {'S': [], 'I': [], 'R': []}
     for i in range(len(ca_results)):
         mean_ca, _ = ca_results[i]
-        _, mean_ode_states, _ = ode_results[i]
+        ode_time, mean_ode_states, _ = ode_results[i]
 
         # Interpolate ODE results to match CA time steps
-        ca_timesteps = mean_ca['timestep']
-        ode_time = np.linspace(0, len(mean_ode_states) * params['ode_dt'], len(mean_ode_states))
-        interp_ode_S = interp1d(ode_time, mean_ode_states[:, 0], kind='linear', fill_value="extrapolate")
-        interp_ode_I = interp1d(ode_time, mean_ode_states[:, 1], kind='linear', fill_value="extrapolate")
-        interp_ode_R = interp1d(ode_time, mean_ode_states[:, 2], kind='linear', fill_value="extrapolate")
+        ca_timesteps = np.array(mean_ca['timestep'])
+        ode_states_s = interp1d(ode_time, mean_ode_states[:, 0], kind='linear', fill_value="extrapolate")
+        ode_states_i = interp1d(ode_time, mean_ode_states[:, 1], kind='linear', fill_value="extrapolate")
+        ode_states_r = interp1d(ode_time, mean_ode_states[:, 2], kind='linear', fill_value="extrapolate")
 
         # Calculate L2 norms for S, I, and R
-        norm_S = np.sqrt(np.sum((mean_ca['S_frac'] - interp_ode_S(ca_timesteps)) ** 2))
-        norm_I = np.sqrt(np.sum((mean_ca['I_frac'] - interp_ode_I(ca_timesteps)) ** 2))
-        norm_R = np.sqrt(np.sum((mean_ca['R_frac'] - interp_ode_R(ca_timesteps)) ** 2))
+        ca_s = np.array(mean_ca['S_frac'])
+        ca_i = np.array(mean_ca['I_frac'])
+        ca_r = np.array(mean_ca['R_frac'])
+        
+        interp_ode_s = ode_states_s(ca_timesteps)
+        interp_ode_i = ode_states_i(ca_timesteps)
+        interp_ode_r = ode_states_r(ca_timesteps)
+
+        norm_S = np.sqrt(np.sum((ca_s - interp_ode_s) ** 2))
+        norm_I = np.sqrt(np.sum((ca_i - interp_ode_i) ** 2))
+        norm_R = np.sqrt(np.sum((ca_r - interp_ode_r) ** 2))
 
         norms['S'].append(norm_S)
         norms['I'].append(norm_I)
@@ -190,42 +269,66 @@ def calculate_norm(ca_results, ode_results):
 
     return norms
 
-def plot_norm_vs_parameter(param_name, param_values, norms):
+def plot_norm_vs_parameter(param_name, param_values, norms, img_dir):
+    """Plot L2 norms as a function of initial infected count."""
     plt.figure(figsize=(10, 6))
-    plt.plot(param_values, norms['S'], marker='o', linestyle='-', label='Norm (S)', color='b')
-    plt.plot(param_values, norms['I'], marker='o', linestyle='-', label='Norm (I)', color='r')
-    plt.plot(param_values, norms['R'], marker='o', linestyle='-', label='Norm (R)', color='g')
-    plt.xlabel(param_name)
-    plt.ylabel('Norm')
-    plt.title(f'Norms for S, I, R vs {param_name}')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    plt.plot(param_values, norms['S'], marker='o', linestyle='-', linewidth=2.5, markersize=8, label='Norm (S)', color='b')
+    plt.plot(param_values, norms['I'], marker='s', linestyle='-', linewidth=2.5, markersize=8, label='Norm (I)', color='r')
+    plt.plot(param_values, norms['R'], marker='^', linestyle='-', linewidth=2.5, markersize=8, label='Norm (R)', color='g')
+    plt.xlabel(f'{param_name}', fontsize=12, fontweight='bold')
+    plt.ylabel('L2 Norm', fontsize=12, fontweight='bold')
+    plt.title(f'L2 Norms vs {param_name}', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save figure
+    fig_filename = os.path.join(img_dir, "l2_norm_vs_initial_infected.png")
+    plt.savefig(fig_filename, dpi=300, bbox_inches='tight')
+    print(f"  Saved L2 norm plot to {fig_filename}")
+    plt.close()
+
+def save_norms_to_csv(csv_dir, param_values, norms):
+    """Save L2 norms to CSV file."""
+    filename = os.path.join(csv_dir, "l2_norms.csv")
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['initial_infected_count', 'norm_S', 'norm_I', 'norm_R'])
+        for i in range(len(param_values)):
+            writer.writerow([
+                int(param_values[i]),
+                norms['S'][i],
+                norms['I'][i],
+                norms['R'][i]
+            ])
+    print(f"  Saved L2 norms to {filename}")
 
 # ==========================================================
 # Main experiment
 # ==========================================================
-def recovery_prob_sensitivity_experiment():
+def initial_infected_count_sensitivity_experiment():
+    csv_dir, img_dir = create_output_directories()
+    
     total_cells = params['width'] * params['height']
-    base_frac = compute_initial_infected_fraction(
-        params['width'], params['height'], params['initial_infected_count']
-    )
     print(f"Grid: {params['width']}x{params['height']} ({total_cells} cells)")
-    print(f"Initial infected count: {params['initial_infected_count']}")
-    print(f"Initial infected fraction (for ODE): {base_frac:.5f}\n")
+    print(f"Parameters: infection_prob={params['infection_prob']}, recovery_prob={params['recovery_prob']}, waning_prob={params['waning_prob']}")
+    print(f"Output directories:")
+    print(f"  CSV: {csv_dir}")
+    print(f"  Images: {img_dir}\n")
 
-    print(f"Running sensitivity for recovery_prob...")
+    print(f"Running sensitivity analysis for initial infected count...")
     ca_results = []
     ode_results = []
 
-    for val in recovery_prob_values:
+    for count in initial_infected_counts:
+        print(f"\n  Processing initial_infected_count={int(count)}...")
         p = params.copy()
-        p['recovery_prob'] = val
+        p['initial_infected_count'] = int(count)
 
         ca_histories = []
         ode_states_list = []
 
-        for _ in range(params['num_simulations']):
+        for sim_idx in range(params['num_simulations']):
             ca_hist, ca_initial_infected_frac = run_ca_simulation(
                 infection_prob=p['infection_prob'],
                 recovery_prob=p['recovery_prob'],
@@ -256,7 +359,7 @@ def recovery_prob_sensitivity_experiment():
             'S_frac': np.mean([np.array(hist['S_frac']) for hist in ca_histories], axis=0),
             'I_frac': np.mean([np.array(hist['I_frac']) for hist in ca_histories], axis=0),
             'R_frac': np.mean([np.array(hist['R_frac']) for hist in ca_histories], axis=0),
-            'timestep': ca_histories[0]['timestep']  # Timesteps are the same for all runs
+            'timestep': ca_histories[0]['timestep']
         }
         std_ca = {
             'S_frac': np.std([np.array(hist['S_frac']) for hist in ca_histories], axis=0),
@@ -268,20 +371,34 @@ def recovery_prob_sensitivity_experiment():
         mean_ode_states = np.mean(ode_states_list, axis=0)
         std_ode_states = np.std(ode_states_list, axis=0)
 
-        print(f"  recovery_prob={val:.3f} → CA I₀={ca_initial_infected_frac:.5f}")
+        # Save CSV results
+        save_ca_results_to_csv(csv_dir, int(count), mean_ca, std_ca)
+        save_ode_results_to_csv(csv_dir, int(count), ode_time, mean_ode_states, std_ode_states)
 
         ca_results.append((mean_ca, std_ca))
         ode_results.append((ode_time, mean_ode_states, std_ode_states))
 
-    # Update the plotting function to handle mean ± std
-    plot_comparison_with_error("recovery_prob", recovery_prob_values, ca_results, ode_results, params['t_max'], params['ode_dt'], plots_per_figure=5)
+    print(f"\n\nGenerating comparison plots...")
+    plot_comparison_with_error("Initial Infected Count", initial_infected_counts, ca_results, ode_results, params['t_max'], params['ode_dt'], img_dir, plots_per_figure=plots_per_figure)
 
-    # Calculate norms and plot norm vs parameter
+    print(f"\nCalculating L2 norms...")
     norms = calculate_norm(ca_results, ode_results)
-    plot_norm_vs_parameter("recovery_prob", recovery_prob_values, norms)
+    
+    print(f"Plotting L2 norms...")
+    plot_norm_vs_parameter("Initial Infected Count", initial_infected_counts, norms, img_dir)
+    
+    print(f"Saving L2 norms to CSV...")
+    save_norms_to_csv(csv_dir, initial_infected_counts, norms)
+
+    print(f"\n{'='*70}")
+    print(f"Analysis complete!")
+    print(f"Results saved to:")
+    print(f"  CSV files: {csv_dir}")
+    print(f"  Images: {img_dir}")
+    print(f"{'='*70}")
 
 # ==========================================================
 # Entry point
 # ==========================================================
 if __name__ == "__main__":
-    recovery_prob_sensitivity_experiment()
+    initial_infected_count_sensitivity_experiment()

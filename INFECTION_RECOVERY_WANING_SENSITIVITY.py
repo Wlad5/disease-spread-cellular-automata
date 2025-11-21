@@ -31,15 +31,13 @@ SIRS_ODE = import_module_from_path("SIRS_ODE", ode_path)
 # ==========================================================
 # Directory setup
 # ==========================================================
-def setup_directories(base_name):
+def setup_directories(base_name, initial_infected_count):
     """Create output directories for CSV and images"""
-    csv_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_csv")
-    img_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_images")
+    csv_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_infected_{initial_infected_count}_csv")
+    img_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_infected_{initial_infected_count}_images")
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(img_dir, exist_ok=True)
     return csv_dir, img_dir
-
-csv_dir, img_dir = setup_directories("infection_recovery_waning")
 
 # ==========================================================
 # Default parameters
@@ -53,13 +51,15 @@ params = {
     't_max'                 : 500,
     'dt'                    : 1.0,
     'ode_dt'                : 0.1,
-    'width'                 : 100,
-    'height'                : 100,
+    'width'                 : 10,
+    'height'                : 10,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 1
 }
+
+csv_dir, img_dir = setup_directories("infection_recovery_waning", params['initial_infected_count'])
 
 # Parameter ranges
 # Infection + Recovery varied together using linspace

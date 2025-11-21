@@ -31,15 +31,14 @@ SIRS_ODE = import_module_from_path("SIRS_ODE", ode_path)
 # ==========================================================
 # Directory setup
 # ==========================================================
-def setup_directories(base_name):
+def setup_directories(base_name, initial_infected_count):
     """Create output directories for CSV and images"""
-    csv_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_csv")
-    img_dir = os.path.join(os.path.dirname(__file__), f"{base_name}_images")
+    folder_suffix = f"{base_name}_init_{initial_infected_count}"
+    csv_dir = os.path.join(os.path.dirname(__file__), f"{folder_suffix}_csv")
+    img_dir = os.path.join(os.path.dirname(__file__), f"{folder_suffix}_images")
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(img_dir, exist_ok=True)
     return csv_dir, img_dir
-
-csv_dir, img_dir = setup_directories("recovery_waning_infection")
 
 # ==========================================================
 # Default parameters
@@ -56,15 +55,17 @@ params = {
     'width'                 : 100,
     'height'                : 100,
     'cell_size'             : 4,
-    'initial_infected_count': 10,
+    'initial_infected_count': 100,
     'mixing_rate'           : 0.00,
     'num_simulations'       : 1
 }
 
+csv_dir, img_dir = setup_directories("recovery_waning_infection", params['initial_infected_count'])
+
 # Parameter ranges
 # Recovery + Waning varied together using linspace
-recovery_prob_range = np.linspace(0.0, 1, 20)
-waning_prob_range = np.linspace(0.00, 1, 20)
+recovery_prob_range = np.linspace(0.0, 0.5, 20)
+waning_prob_range = np.linspace(0.00, 0.5, 20)
 recovery_waning_pairs = list(zip(recovery_prob_range, waning_prob_range))
 # Infection varied for each pair
 infection_prob_values = np.linspace(0.0, 1, 20)

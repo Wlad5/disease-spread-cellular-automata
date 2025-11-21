@@ -98,10 +98,11 @@ class SIRS_ODE:
         I_eq = (self.gamma * (R0 - 1)) / (self.beta * (self.alpha + self.gamma))
         S_eq = self.alpha / self.beta
         R_eq = 1 - S_eq - I_eq
-        
+        print(R0)
         return (S_eq, I_eq, R_eq)
     
     def get_basic_reproduction_number(self) -> float:
+        print(self.beta / self.alpha)
         return self.beta / self.alpha
 
 def solve_sirs_from_ca_params(
@@ -202,7 +203,7 @@ if __name__ == "__main__":
         k=8,
         delta_t=1.0,
         initial_infected=0.001,
-        t_max=500.0,
+        t_max=1000.0,
         dt=0.1
     )
     
